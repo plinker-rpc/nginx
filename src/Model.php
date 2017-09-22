@@ -102,7 +102,7 @@ class Model
     }
 
     /**
-     * Get
+     * Find All
      */
     public function findAll($table, $where = null, $params = null)
     {
@@ -114,6 +114,7 @@ class Model
             return R::findAll($table);
         }
     }
+
     /**
      * Exec
      */
