@@ -2,7 +2,6 @@
 /**
  * Task Build NGINX
  */
-
 if (!defined('DEBUG')) {
     define('DEBUG', true);
 }
@@ -26,8 +25,8 @@ if (!class_exists('LetsEncrypt')) {
         private $accountKeyPath;
 
         /**
-    *
-    */
+         *
+         */
         public function __construct($certificatesDir, $webRootDir, ClientInterface $client = null)
         {
             $this->certificatesDir = $certificatesDir;
@@ -37,8 +36,8 @@ if (!class_exists('LetsEncrypt')) {
         }
 
         /**
-    *
-    */
+         *
+         */
         public function initAccount($force = false)
         {
             if (!is_file($this->accountKeyPath) || $force) {
@@ -52,8 +51,8 @@ if (!class_exists('LetsEncrypt')) {
         }
 
         /**
-    *
-    */
+         *
+         */
         public function signDomains(array $domains, $reuseCsr = false)
         {
             startDomainSigning:
@@ -235,8 +234,8 @@ if (!class_exists('LetsEncrypt')) {
         }
 
         /**
-    *
-    */
+         *
+         */
         private function readPrivateKey($path)
         {
             if (($key = openssl_pkey_get_private('file://' . $path)) === false) {
@@ -247,8 +246,8 @@ if (!class_exists('LetsEncrypt')) {
         }
 
         /**
-    *
-    */
+         *
+         */
         private function parsePemFromBody($body)
         {
             $pem = chunk_split(base64_encode($body), 64, "\n");
@@ -256,16 +255,16 @@ if (!class_exists('LetsEncrypt')) {
         }
 
         /**
-    *
-    */
+         *
+         */
         private function getDomainPath($domain)
         {
             return $this->certificatesDir . '/' . $domain . '/';
         }
 
         /**
-    *
-    */
+         *
+         */
         private function postNewReg()
         {
             $this->log('Sending registration to letsencrypt server');
@@ -282,8 +281,8 @@ if (!class_exists('LetsEncrypt')) {
         }
 
         /**
-    *
-    */
+         *
+         */
         private function generateCSR($privateKey, array $domains)
         {
             $domain = reset($domains);
@@ -340,8 +339,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
         }
 
         /**
-    *
-    */
+         *
+         */
         private function getCsrContent($csrPath)
         {
             $csr = file_get_contents($csrPath);
@@ -352,8 +351,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
         }
 
         /**
-    *
-    */
+         *
+         */
         private function generateKey($outputDirectory)
         {
             $res = openssl_pkey_new(array(
@@ -379,8 +378,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
         }
 
         /**
-    *
-    */
+         *
+         */
         private function signedRequest($uri, array $payload)
         {
             $privateKey = $this->readPrivateKey($this->accountKeyPath);
@@ -419,8 +418,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
         }
 
         /**
-    *
-    */
+         *
+         */
         protected function log($message)
         {
             echo $message."\n";
@@ -446,16 +445,16 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
         private $base;
 
         /**
-    *
-    */
+         *
+         */
         public function __construct($base)
         {
             $this->base = $base;
         }
 
         /**
-    *
-    */
+         *
+         */
         private function curl($method, $url, $data = null)
         {
             $headers = array('Accept: application/json', 'Content-Type: application/json');
@@ -497,24 +496,24 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
         }
 
         /**
-    *
-    */
+         *
+         */
         public function post($url, $data)
         {
             return $this->curl('POST', $url, $data);
         }
 
         /**
-    *
-    */
+         *
+         */
         public function get($url)
         {
             return $this->curl('GET', $url);
         }
 
         /**
-    *
-    */
+         *
+         */
         public function getLastNonce()
         {
             if (preg_match('~Replay\-Nonce: (.+)~i', $this->lastHeader, $matches)) {
@@ -526,8 +525,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
         }
 
         /**
-    *
-    */
+         *
+         */
         public function getLastLocation()
         {
             if (preg_match('~Location: (.+)~i', $this->lastHeader, $matches)) {
@@ -537,16 +536,16 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
         }
 
         /**
-    *
-    */
+         *
+         */
         public function getLastCode()
         {
             return $this->lastCode;
         }
 
         /**
-    *
-    */
+         *
+         */
         public function getLastLinks()
         {
             preg_match_all('~Link: <(.+)>;rel="up"~', $this->lastHeader, $matches);
@@ -557,16 +556,16 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
     class Base64UrlSafeEncoder
     {
         /**
-    *
-    */
+         *
+         */
         public static function encode($input)
         {
             return str_replace('=', '', strtr(base64_encode($input), '+/', '-_'));
         }
 
         /**
-    *
-    */
+         *
+         */
         public static function decode($input)
         {
             $remainder = strlen($input) % 4;
@@ -588,8 +587,8 @@ if (!class_exists('Nginx')) {
         }
 
         /**
-     *
-     */
+         *
+         */
         public function build($routes)
         {
             // trigger restart of nginx service
@@ -597,53 +596,11 @@ if (!class_exists('Nginx')) {
 
             // loop over each server and build config file
             foreach ($routes as $row) {
-                echo DEBUG ? "   - ".$row['name'].".\n" : null;
+                echo DEBUG ? "   - ".$row['name'].": ".$row['label'].".\n" : null;
 
                 $restart_nginx = true;
 
                 $this->path = "/etc/nginx/proxied/servers/".basename($row['name']);
-
-                // the server has a delete flag
-                if (!empty($row['delete'])) {
-                    echo DEBUG ? "   - Request to remove route.\n" : null;
-                    if ($this->path != "/etc/nginx/proxied/servers/" && file_exists($this->path)) {
-                        echo DEBUG ? "   - Removing route for {$row['name']}\n" : null;
-
-                        // //
-                        // $this->runner->log([
-                        //     'title' => 'Removing route '.$row['name'],
-                        //     'stage' => 'delete',
-                        //     'state' => 'success',
-                        //     'route' => $row['name']
-                        // ]);
-
-                        // remove nginx configs
-                        echo DEBUG ? "   - Deleting nginx configs for {$row['name']}\n" : null;
-                        system("rm -rf ".escapeshellarg($this->path));
-                    }
-
-                    $this->task->trash($row);
-
-                    continue;
-                }
-
-                // the server has a rename flag
-                if (!empty($row['rename'])) {
-                    echo DEBUG ? "   - Request to rename route\n" : null;
-
-                    if (file_exists('/etc/nginx/proxied/servers/'.$row['rename'].'/')) {
-                        rename(
-                            "/etc/nginx/proxied/servers/".$row['rename'].'/',
-                            $this->path.'/'
-                        );
-                        echo DEBUG ? "   - Route directory renamed\n" : null;
-                    } else {
-                        echo DEBUG ? "   - Route directory not found, skipping..\n" : null;
-                    }
-
-                    $row->rename = '';
-                    $this->task->store($row);
-                }
 
                 // check for config folder
                 if (!file_exists($this->path)) {
@@ -698,8 +655,8 @@ if (!class_exists('Nginx')) {
         }
 
         /**
-     *
-     */
+         *
+         */
         public function config_test_nginx()
         {
             echo DEBUG ? "   - Testing NGINX config\n" : null;
@@ -711,8 +668,8 @@ if (!class_exists('Nginx')) {
         }
 
         /**
-     *
-     */
+         *
+         */
         public function config_http($row)
         {
             echo DEBUG ? "   - Building NGINX HTTP server config\n" : null;
@@ -762,8 +719,8 @@ server {
         }
 
         /**
-     *
-     */
+         *
+         */
         public function config_https($row)
         {
             echo DEBUG ? "   - Building NGINX HTTPS server config\n" : null;
@@ -961,8 +918,8 @@ server {
         }
 
         /**
-     *
-     */
+         *
+         */
         public function config_upstream($row)
         {
             echo DEBUG ? "\n   - Building NGINX upstream config\n" : null;
@@ -975,11 +932,9 @@ server {
                 ];
             }
 
-            $data = null;
-            // custom ip
-            if (!empty($row['ip']) || !empty($upstreams[0]['ip'])) {
+            if (!empty($upstreams[0]['ip'])) {
                 echo DEBUG ? "   - Upstream IP: ".$upstreams[0]['ip'].":".$upstreams[0]['port']."\n" : null;
-
+                $data = null;
                 $data .= '# Auto generated on '.date_create()->format('Y-m-d H:i:s').PHP_EOL;
                 $data .= '# Do not edit this file as any changes will be overwritten!'.PHP_EOL.PHP_EOL;
                 $data .= 'upstream '.$row['name'].' {'.PHP_EOL;

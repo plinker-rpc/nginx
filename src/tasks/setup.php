@@ -3,7 +3,7 @@
 ## Install NGINX & PHP-FPM
 #
 #sudo apt -y install nginx
-#sudo apt -y install php7.0-fpm
+#sudo apt -y install php7.0-{fpm,mbstring,curl,mcrypt,json,xml,mysql,sqlite}
 
 /**
  * Create sites config folder
