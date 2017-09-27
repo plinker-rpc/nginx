@@ -47,7 +47,7 @@ if (!file_exists('/usr/share/nginx/html/.well-known')) {
  */
 
 #/etc/nginx/proxied/conf/default.conf
-file_put_contents('/etc/nginx/proxied/conf/default.conf', '
+file_put_contents('/etc/nginx/proxied/conf/default.conf', '#
 client_max_body_size 256M;
 
 server {
@@ -63,7 +63,6 @@ server {
 server {
     listen       80  default_server;
     server_name  _;
-
     return       404;
 }
 
@@ -85,7 +84,7 @@ server {
 	#
 	location ~ \.php$ {
 		include snippets/fastcgi-php.conf;
-	
+
 		# With php-fpm (or other unix sockets):
 		fastcgi_pass unix:/var/run/php/php7.0-fpm.sock;
 		# With php-cgi (or other tcp sockets):
@@ -98,26 +97,30 @@ server {
 	location ~ /\.ht {
 		deny all;
 	}
+
+	location ~ /.*\.db {
+		deny all;
+	}
 }
 ');
 
 #/etc/nginx/proxied/includes/proxy.conf
-file_put_contents('/etc/nginx/proxied/includes/proxy.conf', '
+file_put_contents('/etc/nginx/proxied/includes/proxy.conf', '#
 proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
 proxy_redirect off;
 proxy_buffering off;
 
-proxy_set_header        Host                \$host;
-proxy_set_header        X-Real-IP           \$remote_addr;
-proxy_set_header        X-Forwarded-For     \$proxy_add_x_forwarded_for;
-proxy_set_header        X-Forwarded-Proto   \$scheme;
-proxy_set_header        X-Forwarded-Port    \$server_port;
+proxy_set_header        Host                $host;
+proxy_set_header        X-Real-IP           $remote_addr;
+proxy_set_header        X-Forwarded-For     $proxy_add_x_forwarded_for;
+proxy_set_header        X-Forwarded-Proto   $scheme;
+proxy_set_header        X-Forwarded-Port    $server_port;
 ');
 
 #
 #/etc/nginx/proxied/includes/ssl.conf
 #
-file_put_contents('/etc/nginx/proxied/includes/ssl.conf', '
+file_put_contents('/etc/nginx/proxied/includes/ssl.conf', '#
 ssl on;
 ssl_session_cache  builtin:1000  shared:SSL:10m;
 ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
@@ -128,34 +131,36 @@ ssl_prefer_server_ciphers on;
 #
 #/etc/nginx/proxied/includes/error_pages.conf
 #
-file_put_contents('/etc/nginx/proxied/includes/error_pages.conf', '
+file_put_contents('/etc/nginx/proxied/includes/error_pages.conf', '#
 # redirect server error pages
 error_page 500 /500.html;
 location = /500.html {
     root /usr/share/nginx/html/errors;
     #internal;
 }
+
 error_page 502 /502.html;
 location = /502.html {
     root /usr/share/nginx/html/errors;
     #internal;
 }
+
 error_page 503 /503.html;
 location = /503.html {
     root /usr/share/nginx/html/errors;
     #internal;
 }
+
 error_page 504 /504.html;
 location = /504.html {
     root /usr/share/nginx/html/errors;
     #internal;
-}
-');
+}');
 
 #
 #/etc/nginx/nginx.conf
 #
-file_put_contents('/etc/nginx/nginx.conf', '
+file_put_contents('/etc/nginx/nginx.conf', '#
 user www-data;
 worker_processes 5;
 pid /run/nginx.pid;
@@ -166,10 +171,8 @@ events {
 }
 
 http {
-
 	##
 	# Basic Settings
-	##
 	sendfile on;
 	tcp_nopush on;
 	tcp_nodelay on;
@@ -183,26 +186,19 @@ http {
 
 	##
 	# Logging Settings
-	##
-
 	access_log /var/log/nginx/access.log;
 	error_log /var/log/nginx/error.log;
 
 	##
 	# Gzip Settings
-	##
-
 	gzip on;
 	gzip_disable "msie6";
 
 	##
 	# Virtual Host Configs
-	##
-
 	include /etc/nginx/proxied/conf/*.conf;
 	include /etc/nginx/proxied/servers/*/*.conf;
-}
-');
+}');
 
 #
 # fix cgi.fix-pathinfo
