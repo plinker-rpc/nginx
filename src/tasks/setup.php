@@ -217,17 +217,3 @@ if (file_exists('/etc/php/7.0/fpm/php.ini')) {
         )
     );
 }
-
-#
-# fix cgi.fix-pathinfo
-#
-if (file_exists('/etc/php/7.0/fpm/php.ini')) {
-    file_put_contents(
-        '/etc/php/7.0/fpm/php.ini',
-        str_replace(
-            ';cgi.fix_pathinfo=1',
-            'cgi.fix_pathinfo=0',
-            file_get_contents('/etc/php/7.0/fpm/php.ini')
-        )
-    );
-}
