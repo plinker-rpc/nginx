@@ -1,7 +1,7 @@
 {
     "name": "plinker/nginx",
     "minimum-stability": "dev",
-    "description": "WIP: Control NGINX through plinker RPC",
+    "description": "Control Nginx as a reverse proxy through plinker RPC",
     "license": "MIT",
     "keywords": ["plinker","rpc","nginx"],
     "homepage": "https://github.com/plinker-rpc/nginx",
