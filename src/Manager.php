@@ -129,9 +129,9 @@ namespace Plinker\Nginx {
          */
         public function fetch(array $params = array())
         {
-            if ($params[1] !== null && $params[2] !== null) {
+            if (!empty($params[0]) && !empty($params[1]) && !empty($params[2])) {
                 $result = $this->model->findAll($params[0], $params[1], $params[2]);
-            } elseif ($params[0] !== null && $params === null) {
+            } elseif (!empty($params[0]) && !empty($params[1])) {
                 $result = $this->model->findAll($params[0], $params[1]);
             } else {
                 $result = $this->model->findAll($params[0]);

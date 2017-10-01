@@ -251,7 +251,7 @@ if (!class_exists('LetsEncrypt')) {
         private function parsePemFromBody($body)
         {
             $pem = chunk_split(base64_encode($body), 64, "\n");
-            return "-----BEGIN CERTIFICATE-----\n" . $pem . "-----END CERTIFICATE-----\n";
+            return "-----BEGIN CERTIFICATE-----\n".$pem."-----END CERTIFICATE-----\n";
         }
 
         /**
@@ -369,6 +369,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
             if (!is_dir($outputDirectory)) {
                 @mkdir($outputDirectory, 0700, true);
             }
+            
             if (!is_dir($outputDirectory)) {
                 throw new \RuntimeException("Cant't create directory $outputDirectory");
             }
@@ -906,7 +907,7 @@ server {
     # add ssl seetings
     include /etc/nginx/proxied/includes/ssl.conf;
 
-    ## send request back to backend ##
+    # send request back to backend
     location / {
         # change to upstream directive e.g http://backend
         proxy_pass  http://'.$row['name'].';
