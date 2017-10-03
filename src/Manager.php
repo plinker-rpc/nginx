@@ -88,7 +88,7 @@ namespace Plinker\Nginx {
                     [
                         'nginx.reconcile',
                         [],
-                        15
+                        1
                     ]
                 );
 
@@ -143,6 +143,43 @@ namespace Plinker\Nginx {
             }
             
             return $return;
+        }
+        
+        /**
+         *
+         */
+        public function rebuild(array $params = array())
+        {
+            if (!is_string($params[0])) {
+                return [
+                    'status' => 'error',
+                    'errors' => ['params' => 'First param must be a string']
+                ];
+            }
+            
+            if (!is_array($params[1])) {
+                return [
+                    'status' => 'error',
+                    'errors' => ['params' => 'Second param must be an array']
+                ];
+            }
+            
+            $route = $this->model->findOne('route', $params[0], $params[1]);
+
+            if (empty($route)) {
+                return [
+                    'status' => 'error',
+                    'errors' => ['route' => 'Not found']
+                ];
+            }
+            
+            $route->has_change = 1;
+
+            $this->model->store($route);
+            
+            return [
+                'status' => 'success'
+            ];
         }
 
         /**

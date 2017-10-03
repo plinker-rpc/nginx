@@ -2,8 +2,13 @@
 /**
  * Task Build NGINX
  */
-if (!defined('DEBUG')) {
+
+if (!empty($this->config['debug']) && !defined('DEBUG')) {
     define('DEBUG', true);
+}
+
+if (!empty($this->config['log']) && !defined('LOG')) {
+    define('LOG', true);
 }
 
 if (!class_exists('LetsEncrypt')) {
@@ -251,7 +256,7 @@ if (!class_exists('LetsEncrypt')) {
         private function parsePemFromBody($body)
         {
             $pem = chunk_split(base64_encode($body), 64, "\n");
-            return "-----BEGIN CERTIFICATE-----\n".$pem."-----END CERTIFICATE-----\n";
+            return "-----BEGIN CERTIFICATE-----\n" . $pem . "-----END CERTIFICATE-----\n";
         }
 
         /**
@@ -369,7 +374,6 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
             if (!is_dir($outputDirectory)) {
                 @mkdir($outputDirectory, 0700, true);
             }
-            
             if (!is_dir($outputDirectory)) {
                 throw new \RuntimeException("Cant't create directory $outputDirectory");
             }
@@ -423,6 +427,8 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
          */
         protected function log($message)
         {
+            $log  = '['.date("F j, Y, g:i a").'] '.$message.PHP_EOL;
+            file_put_contents('./log_'.date("j.n.Y").'.txt', $log, FILE_APPEND);
             echo $message."\n";
         }
     }
@@ -586,6 +592,22 @@ if (!class_exists('Nginx')) {
         {
             $this->task = $task;
         }
+        
+        /**
+         *
+         */
+        private function log($message)
+        {
+            if (LOG) {
+                if (!file_exists('./logs')) {
+                    mkdir('./logs', 0755);
+                }
+                $log  = '['.date("F j, Y, g:i a").'] '.$message.PHP_EOL;
+                file_put_contents('./logs/log_'.date("j.n.Y").'.txt', $log, FILE_APPEND);
+            }
+            
+            echo DEBUG ? "   - ".$message."\n" : null;
+        }
 
         /**
          *
@@ -597,7 +619,7 @@ if (!class_exists('Nginx')) {
 
             // loop over each server and build config file
             foreach ($routes as $row) {
-                echo DEBUG ? "   - ".$row['name'].": ".$row['label'].".\n" : null;
+                echo DEBUG ? $this->log($row['name'].": ".$row['label']) : null;
 
                 $restart_nginx = true;
 
@@ -605,26 +627,29 @@ if (!class_exists('Nginx')) {
 
                 // check for config folder
                 if (!file_exists($this->path)) {
-                    echo DEBUG ? "   - Create config directory {$this->path}\n" : null;
+                    echo DEBUG ? $this->log('Create config directory: '.$this->path) : null;
                     mkdir($this->path, 0755, true);
                 }
 
-                $has_error = false;
-
                 // build nginx configs
-                if (!$this->config_upstream($row) && !$has_error) {
-                    echo DEBUG ? "   - \e[1;31mNGINX was not reloaded - upstream.conf - check log for error!\e[0m\n" : null;
-                    $row->has_error = 1;
+                if (!$this->config_upstream($row)) {
+                    echo DEBUG ? $this->log('NGINX was not reloaded - upstream.conf - check log for error!') : null;
+                    $restart_nginx = false;
+                    $row->has_error = true;
                     $this->task->store($row);
                 }
-                if (!$this->config_http($row) && !$has_error) {
-                    echo DEBUG ? "   - \e[1;31mNGINX was not reloaded - http.conf - check log for error!\e[0m\n" : null;
-                    $row->has_error = 1;
+                
+                if (!$this->config_http($row)) {
+                    echo DEBUG ? $this->log('NGINX was not reloaded - http.conf - check log for error!') : null;
+                    $restart_nginx = false;
+                    $row->has_error = true;
                     $this->task->store($row);
                 }
-                if (!$this->config_https($row) && !$has_error) {
-                    echo DEBUG ? "   - \e[1;31mNGINX was not reloaded - https.conf - check log for error!\e[0m\n" : null;
-                    $row->has_error = 1;
+                
+                if (!$this->config_https($row)) {
+                    echo DEBUG ? $this->log('NGINX was not reloaded - https.conf - check log for error!') : null;
+                    $restart_nginx = false;
+                    $row->has_error = true;
                     $this->task->store($row);
                 }
                 
@@ -636,20 +661,22 @@ if (!class_exists('Nginx')) {
             if ($restart_nginx === true) {
                 if ($this->config_test_nginx()) {
                     exec('/usr/sbin/nginx -s reload 2>&1', $out, $exit_code);
+                    
+                    echo DEBUG ? $this->log('Reloading NGINX: [exit code: '.$exit_code.']: '.print_r($out, true)) : null;
 
-                    echo DEBUG ? "   - Reloading NGINX\n" : null;
-
-                    // out is not empty - when is should be on success
+                    // out is not empty
                     if (!empty($out)) {
-                        echo DEBUG ? "   - \e[1;33mNGINX was reloaded with warnings! Some routes may be effected.\e[0m\n" : null;
+                        echo DEBUG ? $this->log('NGINX was reloaded with warnings! Some routes may be effected.') : null;
                     }
                     // all is good
                     else {
-                        echo DEBUG ? "   - \e[1;32mNGINX was reloaded\e[0m\n" : null;
+                        echo DEBUG ? $this->log('NGINX was reloaded.') : null;
                     }
                 } else {
-                    echo DEBUG ? "   - \e[1;31mNGINX was not reloaded\e[0m\n" : null;
+                    echo DEBUG ? $this->log('NGINX was not reloaded.') : null;
                 }
+                
+                echo DEBUG ? $this->log(str_repeat('-', 40)) : null;
             }
 
             return;
@@ -660,11 +687,8 @@ if (!class_exists('Nginx')) {
          */
         public function config_test_nginx()
         {
-            echo DEBUG ? "   - Testing NGINX config\n" : null;
             exec('/usr/sbin/nginx -t 2>&1', $out, $exit_code);
-
-            $this->config_test_result = $out;
-
+            echo DEBUG ? $this->log('Testing NGINX config: [exit code: '.$exit_code.']: '.print_r($out, true)) : null;
             return ($exit_code == 0);
         }
 
@@ -673,7 +697,7 @@ if (!class_exists('Nginx')) {
          */
         public function config_http($row)
         {
-            echo DEBUG ? "   - Building NGINX HTTP server config\n" : null;
+            echo DEBUG ? $this->log('Building NGINX HTTP server config.') : null;
 
             $domains = [];
             foreach ($row->ownDomain as $domain) {
@@ -724,22 +748,17 @@ server {
          */
         public function config_https($row)
         {
-            echo DEBUG ? "   - Building NGINX HTTPS server config\n" : null;
-
             //no ssl
             if (empty($row['ssl_type'])) {
-                echo DEBUG ? "   - Removing unused SSL configs\n" : null;
-                $logit = false;
-
                 //remove https.conf if its there
                 if (file_exists($this->path.'/https.conf')) {
-                    $logit = true;
-                    echo DEBUG ? "   - https.sh removed\n" : null;
+                    echo DEBUG ? $this->log('Removing unused https.sh config.') : null;
                     unlink($this->path.'/https.conf');
                 }
-
                 return true;
             }
+            
+            echo DEBUG ? $this->log('Building NGINX HTTPS server config.') : null;
 
             $sslPath = null;
 
@@ -751,22 +770,22 @@ server {
             // check certs for letsencrypt
             if (isset($row['ssl_type']) && $row['ssl_type'] == 'letsencrypt') {
                 date_default_timezone_set("UTC");
-                echo DEBUG ? "   - Using LetsEncrypt certificate\n" : null;
+                echo DEBUG ? $this->log('Using LetsEncrypt certificate.') : null;
 
                 $sslPath = '/etc/letsencrypt/live';
 
-                echo DEBUG ? "   - Certificate will be written to: {$sslPath}/{$domains[0]}\n" : null;
+                echo DEBUG ? $this->log('Certificate will be written to: '.$sslPath.'/'.$domains[0]) : null;
 
                 // make sure our cert location exists
                 if (!is_dir($sslPath)) {
-                    echo DEBUG ? "   - Certs path is not a directory\n" : null;
+                    echo DEBUG ? $this->log('Certs path is not a directory.') : null;
                     // Make sure nothing is already there.
                     if (file_exists($sslPath)) {
-                        echo DEBUG ? "   - Removing existing path contents ready for certificate\n" : null;
+                        echo DEBUG ? $this->log('Removing existing path contents ready for certificate.') : null;
                         array_map('unlink', glob("$sslPath/*.*"));
                         rmdir($sslPath);
                     }
-                    echo DEBUG ? "   - Certificates directory created\n" : null;
+                    echo DEBUG ? $this->log('Certificates directory created.') : null;
                     mkdir($sslPath);
                 }
 
@@ -774,38 +793,38 @@ server {
                 $needsgen = false;
 
                 // display number of domains in cert
-                echo DEBUG ? "   - ".count($domains)." domains for certificate\n" : null;
+                echo DEBUG ? $this->log(count($domains).' domains for certificate') : null;
 
                 // the first domain is the main domain used
                 $certfile = $sslPath.'/'.$domains[0].'/cert.pem';
-                echo DEBUG ? "   - Certificate: $certfile\n" : null;
+                echo DEBUG ? $this->log('Certificate: '.$certfile) : null;
 
                 //
                 if (!file_exists($certfile)) {
-                    echo DEBUG ? "   - Certificate: cert.pem - no exsiting certificate found, triggering initial generation\n" : null;
+                    echo DEBUG ? $this->log('Certificate: cert.pem - no exsiting certificate found, triggering initial generation.') : null;
                     // we don't have a cert, so we need to request one.
                     $needsgen = true;
                 } else {
-                    echo DEBUG ? "   - Certificate: cert.pem - found exsiting certificate, checking validity\n" : null;
+                    echo DEBUG ? $this->log('Certificate: cert.pem - found exsiting certificate, checking validity.') : null;
 
                     // varify certificate date.
                     $certdata = openssl_x509_parse(file_get_contents($certfile));
-                    echo DEBUG ? "   - Certificate: cert.pem - domain expires on ".date('d/m/Y h:i:s', $certdata['validTo_time_t'])."\n" : null;
+                    echo DEBUG ? $this->log('Certificate: cert.pem - domain expires '.date('d/m/Y h:i:s', $certdata['validTo_time_t'])) : null;
 
                     // if it expires in less than a month, we want to renew it.
                     $renewafter = $certdata['validTo_time_t']-(86400*30);
 
                     // update control host with the certificates expiry date
-                    echo DEBUG ? "   - Notifying control host with the certificates expiry date\n" : null;
+                    echo DEBUG ? $this->log('Notifying control host with the certificates expiry date.') : null;
                     $row->certificate_expiry = $certdata['validTo_time_t'];
                     $this->task->store($row);
 
                     if (time() > $renewafter) {
-                        echo DEBUG ? "   - Certificate: cert.pem - renewing certificate\n" : null;
+                        echo DEBUG ? $this->log('Certificate: cert.pem - renewing certificate.') : null;
                         // less than a month left, we need to renew.
                         $needsgen = true;
                     } else {
-                        echo DEBUG ? "   - Certificate: cert.pem - skipping renewal\n" : null;
+                        echo DEBUG ? $this->log('Certificate: cert.pem - skipping renewal.') : null;
                     }
                 }
 
@@ -821,11 +840,7 @@ server {
                         $row->error = json_encode($e);
                         $this->task->store($row);
 
-                        if (DEBUG) {
-                            echo "   - Certificate error: \n";
-                            print_r($le->last_result);
-                            print_r($e);
-                        }
+                        echo DEBUG ? $this->log('Certificate error: '.print_r($le->last_result, true).PHP_EOL.print_r($e)) : null;
                         return;
                     }
 
@@ -837,21 +852,15 @@ server {
                             file_get_contents("$sslPath/{$domains[0]}/private.pem")
                         );
 
-                        if (DEBUG) {
-                            echo file_get_contents($sslPath.'/'.$domains[0].'/cert.pem');
-                            echo file_get_contents($sslPath.'/'.$domains[0].'/chain.pem');
-                            echo file_get_contents($sslPath.'/'.$domains[0].'/fullchain.pem');
-                            echo file_get_contents($sslPath.'/'.$domains[0].'/private.pem');
-                            echo file_get_contents($sslPath.'/'.$domains[0].'/public.pem');
-                            echo file_get_contents($sslPath.'/'.$domains[0].'/'.$domains[0].'.pem');
-                        }
+                        echo DEBUG ? $this->log('Certificate: '.PHP_EOL.file_get_contents($sslPath.'/'.$domains[0].'/'.$domains[0].'.pem')) : null;
 
                         // varify certificate date.
                         $certdata = openssl_x509_parse(file_get_contents($sslPath.'/'.$domains[0].'/cert.pem'));
-                        echo DEBUG ? "   - Certificate: cert.pem - domain expires on ".date('d/m/Y h:i:s', $certdata['validTo_time_t'])."\n" : null;
+                        
+                        echo DEBUG ? $this->log('Certificate: cert.pem - domain expires on '.date('d/m/Y h:i:s', $certdata['validTo_time_t'])): null;
 
                         // update control host with the certificates expiry date
-                        echo DEBUG ? "   - Notifying control host with the certificates expiry date\n" : null;
+                        echo DEBUG ? $this->log('Notifying control host with the certificates expiry date.') : null;
 
                         $row->certificate_expiry = $certdata['validTo_time_t'];
                         $this->task->store($row);
@@ -861,13 +870,13 @@ server {
 
             // check certs for manual ssl
             if (isset($row['ssl_type']) && $row['ssl_type'] == 'manual') {
-                echo DEBUG ? "   - SSL is type manual\n" : null;
+                echo DEBUG ? $this->log('SSL is type manual.') : null;
                 $sslPath = '/etc/ssl/live/'.$domains[0];
             }
 
             // check certs for manual ssl
             if (isset($row['ssl_type']) && $row['ssl_type'] == 'selfsigned') {
-                echo DEBUG ? "   - SSL is type selfsigned\n" : null;
+                echo DEBUG ? $this->log('SSL is type selfsigned.') : null;
                 $sslPath = '/etc/ssl/selfsigned';
             }
 
@@ -875,11 +884,11 @@ server {
                 !file_exists($sslPath.'/'.$domains[0].'/fullchain.pem') ||
                 !file_exists($sslPath.'/'.$domains[0].'/private.pem')
                ) {
-                echo DEBUG ? "  - No SSL to setup\n" : null;
+                echo DEBUG ? $this->log('No SSL to setup.') : null;
                 return true;
             }
 
-            echo DEBUG ? "   - Building https.conf\n" : null;
+            echo DEBUG ? $this->log('Building https.conf') : null;
 
             return file_put_contents(
                 $this->path.'/https.conf',
@@ -907,7 +916,7 @@ server {
     # add ssl seetings
     include /etc/nginx/proxied/includes/ssl.conf;
 
-    # send request back to backend
+    ## send request back to backend ##
     location / {
         # change to upstream directive e.g http://backend
         proxy_pass  http://'.$row['name'].';
@@ -923,7 +932,7 @@ server {
          */
         public function config_upstream($row)
         {
-            echo DEBUG ? "\n   - Building NGINX upstream config\n" : null;
+            echo DEBUG ? $this->log('Building NGINX upstream config.') : null;
 
             $upstreams = [];
             foreach ($row['ownUpstream'] as $upstream) {
