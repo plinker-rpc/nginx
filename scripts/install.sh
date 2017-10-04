@@ -104,9 +104,9 @@ install_php() {
         #
         echo "Installing PHP5.5.9"
         sudo apt-get -yq install php5 php5-cli
-        sudo apt-get -yq install php5-{curl,gd,mcrypt,json,mysql,sqlite}
+        sudo apt-get -yq install php5-{curl,gd,mcrypt,json,mysql,sqlite,zip,opcache}
         
-        sudo apt-get -yq install php5.0-fpm
+        sudo apt-get -yq install php5-fpm
         #
         # enable mods
         sudo php5enmod mcrypt
@@ -115,10 +115,10 @@ install_php() {
     # Install PHP7
     if [ $phpver = "7" ]; then
         #
-        echo "Installing PHP7.0"
-        sudo apt-get -yq install php7.0 php7.0-cli
-        sudo apt-get -yq install php7.0-{mbstring,curl,gd,mcrypt,json,xml,mysql,sqlite}
-        sudo apt-get -yq install php7.0-fpm
+        echo "Installing PHP7.1"
+        sudo apt-get -yq install php7.1 php7.1-cli
+        sudo apt-get -yq install php7.1-{mbstring,curl,gd,mcrypt,json,xml,mysql,sqlite,zip,opcache}
+        sudo apt-get -yq install php7.1-fpm
     fi
 }
 

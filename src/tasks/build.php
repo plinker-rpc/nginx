@@ -600,10 +600,10 @@ if (!class_exists('Nginx')) {
         {
             if (LOG) {
                 if (!file_exists('./logs')) {
-                    mkdir('./logs', 0775);
+                    mkdir('./logs', 0775, true);
                 }
-                $log  = '['.date("F j, Y, g:i a").'] '.$message.PHP_EOL;
-                file_put_contents('./logs/'.date("j.n.Y").'.txt', $log, FILE_APPEND);
+                $log  = '['.date("c").'] '.$message.PHP_EOL;
+                file_put_contents('./logs/'.date("d-m-Y").'.txt', $log, FILE_APPEND);
             }
             
             echo DEBUG ? "   - ".$message."\n" : null;

@@ -1,12 +1,12 @@
 <?php
 if (!class_exists('Reconcile')) {
     /**
-     * 
+     *
      */
     class Reconcile
     {
         /**
-         * 
+         *
          */
         public function __construct($task)
         {
@@ -14,7 +14,7 @@ if (!class_exists('Reconcile')) {
         }
         
         /**
-         * 
+         *
          */
         public function run()
         {
@@ -22,7 +22,7 @@ if (!class_exists('Reconcile')) {
         }
         
         /**
-         * 
+         *
          */
         public function routes()
         {
