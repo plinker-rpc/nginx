@@ -81,7 +81,7 @@ and 80, 443 for the reverse proxy.
 
 **Setup**
 
-Applyes build tasks to plinker/tasks queue.
+Applies build tasks to plinker/tasks queue.
 
     $nginx->setup([
         'build_sleep' => 1    
