@@ -32,5 +32,118 @@ The webroot for plinker will be `/var/www/html` so plinker should be in there.
 The difference being that nginx will listen on port 88 for plinker calls, 
 and 80, 443 for the reverse proxy.
 
+::Client::
+---------
+
+    /**
+     * Plinker Config
+     */
+    $config = [
+        // plinker connection
+        'plinker' => [
+            'endpoint' => 'http://127.0.0.1:88',
+            'public_key'  => 'makeSomethingUp',
+            'private_key' => 'againMakeSomethingUp'
+        ],
+    
+        // database connection
+        'database' => [
+            'dsn'      => 'sqlite:./database.db',
+            'host'     => '',
+            'name'     => '',
+            'username' => '',
+            'password' => '',
+            'freeze'   => false,
+            'debug'    => false,
+        ]
+    ];
+    
+    // init plinker endpoint client
+    $nginx = new \Plinker\Core\Client(
+        // where is the plinker server
+        $config['plinker']['endpoint'],
+    
+        // component namespace to interface to
+        'Nginx\Manager',
+    
+        // keys
+        $config['plinker']['public_key'],
+        $config['plinker']['private_key'],
+    
+        // construct values which you pass to the component, which the component
+        //  will use, for RedbeanPHP component you would send the database connection
+        //  dont worry its AES encrypted. see: encryption-proof.txt
+        $config
+    );
+    
+::Calls::
+---------
+
+**Setup**
+
+Applyes build tasks to plinker/tasks queue.
+
+    $nginx->setup([
+        'build_sleep' => 1    
+    ])
+
+**Create**
+
+    $route = [
+        'label' => 'Example Changed',
+        'domains' => [
+            'example.com',
+            'www.example.com',
+            'new.example.com',
+        ],
+        'upstreams' => [
+            ['ip' => '127.0.0.2', 'port' => '8080']
+        ],
+        'letsencrypt' => 0,
+        'enabled' => 1
+    ];
+    $nginx->add($route);
+
+**Update**
+
+    $route = [
+        'label' => 'Example Changed',
+        'domains' => [
+            'example.com',
+            'www.example.com',
+            'new.example.com',
+        ],
+        'upstreams' => [
+            ['ip' => '127.0.0.2', 'port' => '8080']
+        ],
+        'letsencrypt' => 0,
+        'enabled' => 1
+    ];
+    // column, value, $data
+    $nginx->update('id = ?', [1], $data);
+
+**Fetch**
+    
+    $nginx->fetch('route');
+    $nginx->fetch('route', 'id = ? ', [1]);
+    $nginx->fetch('route', 'name = ? ', ['some-guidV4-value'])
+
+**Remove**
+
+    $nginx->remove('name = ?', [$route['name']]);
+
+**Rebuild**
+
+    $nginx->rebuild('name = ?', [$route['name']]);
+
+**Reset**
+
+    // dont remove tasks
+    $nginx->reset();
+    
+    // remove tasks
+    $nginx->reset(true);
+    
+
 See the [organisations page](https://github.com/plinker-rpc) for additional 
 components and examples.

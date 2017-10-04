@@ -725,6 +725,9 @@ server {
 
     # send request back to backend
     location / {
+        #
+        proxy_bind $server_addr;
+        
         # change to upstream directive e.g http://backend
         proxy_pass  http://'.$row['name'].';
 
@@ -918,6 +921,9 @@ server {
 
     ## send request back to backend ##
     location / {
+        #
+        proxy_bind $server_addr;
+        
         # change to upstream directive e.g http://backend
         proxy_pass  http://'.$row['name'].';
 
