@@ -3,11 +3,11 @@
  * Task Build NGINX
  */
 
-if (!empty($this->config['debug']) && !defined('DEBUG')) {
+if (!empty($this->task->config['debug']) && !defined('DEBUG')) {
     define('DEBUG', true);
 }
 
-if (!empty($this->config['log']) && !defined('LOG')) {
+if (!empty($this->task->config['log']) && !defined('LOG')) {
     define('LOG', true);
 }
 
@@ -599,8 +599,8 @@ if (!class_exists('Nginx')) {
         private function log($message)
         {
             if (LOG) {
-                if (!file_exists('logs')) {
-                    mkdir('logs', 0775);
+                if (!file_exists('./logs')) {
+                    mkdir('./logs', 0775);
                 }
                 $log  = '['.date("F j, Y, g:i a").'] '.$message.PHP_EOL;
                 file_put_contents('./logs/'.date("j.n.Y").'.txt', $log, FILE_APPEND);
