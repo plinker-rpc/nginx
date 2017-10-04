@@ -9,7 +9,7 @@ The aim of this component is to build web forwards/reverse proxy to LXD/LXC
 containers on the host (or external upstreams), not as a `server{}` block configurator.
 
 The component uses nginx as a reverse proxy, it relies on php7-fpm being 
-installed and will overwrite `/etc/nginx/nginx.conf`! So if you have already 
+installed and will overwrite `/etc/nginx/nginx.conf`! So if you already have
 nginx installed then dont use this component as it will most likely break your stuff.
 
 
@@ -90,14 +90,13 @@ Applies build tasks to plinker/tasks queue.
 **Create**
 
     $route = [
-        'label' => 'Example Changed',
+        'label' => 'Example',
         'domains' => [
             'example.com',
-            'www.example.com',
-            'new.example.com',
+            'www.example.com'
         ],
         'upstreams' => [
-            ['ip' => '127.0.0.2', 'port' => '8080']
+            ['ip' => '127.0.0.1', 'port' => '80']
         ],
         'letsencrypt' => 0,
         'enabled' => 1
@@ -114,7 +113,7 @@ Applies build tasks to plinker/tasks queue.
             'new.example.com',
         ],
         'upstreams' => [
-            ['ip' => '127.0.0.2', 'port' => '8080']
+            ['ip' => 10.0.0.1', 'port' => '8080']
         ],
         'letsencrypt' => 0,
         'enabled' => 1
@@ -125,8 +124,8 @@ Applies build tasks to plinker/tasks queue.
 **Fetch**
     
     $nginx->fetch('route');
-    $nginx->fetch('route', 'id = ? ', [1]);
-    $nginx->fetch('route', 'name = ? ', ['some-guidV4-value'])
+    $nginx->fetch('route', 'id = ?', [1]);
+    $nginx->fetch('route', 'name = ?', ['some-guidV4-value'])
 
 **Remove**
 
