@@ -599,11 +599,11 @@ if (!class_exists('Nginx')) {
         private function log($message)
         {
             if (LOG) {
-                if (!file_exists('./logs')) {
-                    mkdir('./logs', 0755);
+                if (!file_exists('logs')) {
+                    mkdir('logs', 0775);
                 }
                 $log  = '['.date("F j, Y, g:i a").'] '.$message.PHP_EOL;
-                file_put_contents('./logs/log_'.date("j.n.Y").'.txt', $log, FILE_APPEND);
+                file_put_contents('./logs/'.date("j.n.Y").'.txt', $log, FILE_APPEND);
             }
             
             echo DEBUG ? "   - ".$message."\n" : null;
