@@ -12,9 +12,7 @@ The component uses nginx as a reverse proxy, it relies on php7-fpm being
 installed and will overwrite `/etc/nginx/nginx.conf`! So if you already have
 nginx installed then dont use this component as it will most likely break your stuff.
 
-
 ## ::Installing::
-
 
 Bring in the project with composer:
 
