@@ -2,6 +2,7 @@
 namespace Plinker\Nginx {
 
     use Plinker\Tasks;
+    use Plinker\Redbean\RedBean as Model;
 
     class Manager
     {
@@ -123,7 +124,7 @@ namespace Plinker\Nginx {
          * @usage:
          *  all            - $nginx->fetch('route');
          *  routeById(1)   - $nginx->fetch('route', 'id = ? ', [1]);
-         *  routeByName(1) - $nginx->fetch('route', 'name = ? ', ['foobar'])
+         *  routeByName(1) - $nginx->fetch('route', 'name = ? ', ['guidV4-value'])
          *
          * @return array
          */
@@ -251,7 +252,7 @@ namespace Plinker\Nginx {
         /**
          * Generate a GUIv4
          */
-        public function guidv4()
+        private function guidv4()
         {
             if (function_exists('com_create_guid') === true) {
                 return trim(com_create_guid(), '{}');
