@@ -131,11 +131,11 @@ namespace Plinker\Nginx {
         public function fetch(array $params = array())
         {
             if (!empty($params[0]) && !empty($params[1]) && !empty($params[2])) {
-                $result = $this->model->findAll($params[0], $params[1], $params[2]);
+                $result = $this->model->findAll([$params[0], $params[1], $params[2]]);
             } elseif (!empty($params[0]) && !empty($params[1])) {
-                $result = $this->model->findAll($params[0], $params[1]);
+                $result = $this->model->findAll([$params[0], $params[1]]);
             } else {
-                $result = $this->model->findAll($params[0]);
+                $result = $this->model->findAll([$params[0]]);
             }
             
             $return = [];
@@ -165,7 +165,7 @@ namespace Plinker\Nginx {
                 ];
             }
             
-            $route = $this->model->findOne('route', $params[0], $params[1]);
+            $route = $this->model->findOne(['route', $params[0], $params[1]]);
 
             if (empty($route)) {
                 return [
@@ -202,7 +202,7 @@ namespace Plinker\Nginx {
                 ];
             }
             
-            $route = $this->model->findOne('route', $params[0], $params[1]);
+            $route = $this->model->findOne(['route', $params[0], $params[1]]);
 
             if (empty($route)) {
                 return [
@@ -233,15 +233,15 @@ namespace Plinker\Nginx {
          */
         public function reset(array $params = array())
         {
-            $this->model->exec('DELETE FROM route');
-            $this->model->exec('DELETE FROM domain');
-            $this->model->exec('DELETE FROM upstream');
+            $this->model->exec(['DELETE FROM route']);
+            $this->model->exec(['DELETE FROM domain']);
+            $this->model->exec(['DELETE FROM upstream']);
             
             if (!empty($params[0])) {
-                $this->model->exec('DELETE from tasks WHERE name = "nginx.setup"');
-                $this->model->exec('DELETE from tasks WHERE name = "nginx.build"');
-                $this->model->exec('DELETE from tasks WHERE name = "nginx.reconcile"');
-                $this->model->exec('DELETE from tasks WHERE name = "nginx.reload"');
+                $this->model->exec(['DELETE from tasks WHERE name = "nginx.setup"']);
+                $this->model->exec(['DELETE from tasks WHERE name = "nginx.build"']);
+                $this->model->exec(['DELETE from tasks WHERE name = "nginx.reconcile"']);
+                $this->model->exec(['DELETE from tasks WHERE name = "nginx.reload"']);
             }
 
             return [
@@ -373,7 +373,7 @@ namespace Plinker\Nginx {
             }
 
             // create route
-            $route = $this->model->create(
+            $route = $this->model->create([
                 [
                     'route',
                     'label'      => (!empty($data['label']) ? $data['label'] : '-'),
@@ -387,18 +387,18 @@ namespace Plinker\Nginx {
                     'enabled'    => !empty($data['enabled']),
                     'update_ip'  => (!empty($data['update_ip']) ? 1 : 0)
                 ]
-            );
+            ]);
 
             // create domains
             $domains = [];
             foreach ((array) $data['domains'] as $row) {
                 $row = strtolower($row);
-                $domain = $this->model->create(
+                $domain = $this->model->create([
                     [
                         'domain',
                         'name' => str_replace(['http://', 'https://', '//'], '', $row)
                     ]
-                );
+                ]);
                 $domains[] = $domain;
             }
             $route['xownDomainList'] = $domains;
@@ -421,12 +421,12 @@ namespace Plinker\Nginx {
             // create upstreams
             $upstreams = [];
             foreach ((array) $data['upstreams'] as $row) {
-                $upstream = $this->model->create(
+                $upstream = $this->model->create([
                     [
                         'upstream',
                         'ip' => $row['ip']
                     ]
-                );
+                ]);
                 $upstream->port = (int) $row['port'];
                 $upstreams[] = $upstream;
             }
@@ -464,7 +464,7 @@ namespace Plinker\Nginx {
             
             $errors = [];
             
-            $route = $this->model->findOne('route', $query, $id);
+            $route = $this->model->findOne(['route', $query, $id]);
             
             // check found
             if (empty($route->name)) {
@@ -602,12 +602,12 @@ namespace Plinker\Nginx {
                 $route->xownDomainList = [];
                 $domains = [];
                 foreach ((array) $data['domains'] as $row) {
-                    $domain = $this->model->create(
+                    $domain = $this->model->create([
                         [
                             'domain',
                             'name' => str_replace(['http://', 'https://', '//'], '', $row)
                         ]
-                    );
+                    ]);
                     $domains[] = $domain;
                 }
                 $route->xownDomainList = $domains;
@@ -633,12 +633,12 @@ namespace Plinker\Nginx {
                 $route->xownUpstreamList = [];
                 $upstreams = [];
                 foreach ((array) $data['upstreams'] as $row) {
-                    $upstream = $this->model->create(
+                    $upstream = $this->model->create([
                         [
                             'upstream',
                             'ip' => $row['ip']
                         ]
-                    );
+                    ]);
                     $upstream->port = (int) $row['port'];
                     $upstreams[] = $upstream;
                 }
