@@ -368,14 +368,15 @@ namespace Plinker\Nginx {
             if (!empty($errors)) {
                 return [
                     'status' => 'error',
-                    'errors' => $errors
+                    'errors' => $errors,
+                    'values' => $data
                 ];
             }
 
             // create route
             $route = $this->model->create([
+                'route',
                 [
-                    'route',
                     'label'      => (!empty($data['label']) ? $data['label'] : '-'),
                     'name'       => $data['name'],
                     'ssl_type'   => (!empty($data['ssl_type']) ? preg_replace('/[^a-z]/i', '', $data['ssl_type']) : ''),
@@ -394,8 +395,8 @@ namespace Plinker\Nginx {
             foreach ((array) $data['domains'] as $row) {
                 $row = strtolower($row);
                 $domain = $this->model->create([
+                    'domain',
                     [
-                        'domain',
                         'name' => str_replace(['http://', 'https://', '//'], '', $row)
                     ]
                 ]);
@@ -422,8 +423,8 @@ namespace Plinker\Nginx {
             $upstreams = [];
             foreach ((array) $data['upstreams'] as $row) {
                 $upstream = $this->model->create([
+                    'upstream',
                     [
-                        'upstream',
                         'ip' => $row['ip']
                     ]
                 ]);
@@ -437,12 +438,16 @@ namespace Plinker\Nginx {
             } catch (\Exception $e) {
                 return [
                     'status' => 'error',
-                    'errors' => ['store' => $e->getMessage()]
+                    'errors' => ['store' => $e->getMessage()],
+                    'values' => $data
                 ];
             }
             
+            $route = $this->model->export($route)[0];
+            
             return [
-                'status' => 'success'
+                'status' => 'success',
+                'values' => $route
             ];
         }
         
@@ -470,7 +475,8 @@ namespace Plinker\Nginx {
             if (empty($route->name)) {
                 return [
                     'status' => 'error',
-                    'errors' => ['query' => 'Route not found']
+                    'errors' => ['query' => 'Route not found'],
+                    'values' => $data
                 ];
             }
             
@@ -478,7 +484,8 @@ namespace Plinker\Nginx {
             if (isset($data['name']) && $data['name'] != $route->name) {
                 return [
                     'status' => 'error',
-                    'errors' => ['name' => 'Name cannot be changed']
+                    'errors' => ['name' => 'Name cannot be changed'],
+                    'values' => $data
                 ];
             }
 
@@ -579,7 +586,8 @@ namespace Plinker\Nginx {
             if (!empty($errors)) {
                 return [
                     'status' => 'error',
-                    'errors' => $errors
+                    'errors' => $errors,
+                    'values' => $data
                 ];
             }
 
@@ -603,8 +611,8 @@ namespace Plinker\Nginx {
                 $domains = [];
                 foreach ((array) $data['domains'] as $row) {
                     $domain = $this->model->create([
+                        'domain',
                         [
-                            'domain',
                             'name' => str_replace(['http://', 'https://', '//'], '', $row)
                         ]
                     ]);
@@ -634,8 +642,8 @@ namespace Plinker\Nginx {
                 $upstreams = [];
                 foreach ((array) $data['upstreams'] as $row) {
                     $upstream = $this->model->create([
+                        'upstream',
                         [
-                            'upstream',
                             'ip' => $row['ip']
                         ]
                     ]);
@@ -650,12 +658,16 @@ namespace Plinker\Nginx {
             } catch (\Exception $e) {
                 return [
                     'status' => 'error',
-                    'errors' => ['store' => $e->getMessage()]
+                    'errors' => ['store' => $e->getMessage()],
+                    'values' => $data
                 ];
             }
             
+            $route = $this->model->export($route)[0];
+            
             return [
-                'status' => 'success'
+                'status' => 'success',
+                'values' => $route
             ];
         }
     }
