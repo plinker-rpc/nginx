@@ -344,7 +344,7 @@ namespace Plinker\Nginx {
                 }
 
                 // domain already in use by another route
-                if ($this->model->count('domain', 'name = ?', [$row]) > 0) {
+                if ($this->model->count(['domain', 'name = ?', [$row]]) > 0) {
                     $errors['domains'][$key] = 'Domain already in use';
                 }
             }
@@ -552,7 +552,7 @@ namespace Plinker\Nginx {
                     }
     
                     // domain already in use by another route
-                    if ($this->model->count('domain', 'name = ? AND route_id != ?', [$row, $route->id]) > 0) {
+                    if ($this->model->count(['domain', 'name = ? AND route_id != ?', [$row, $route->id]]) > 0) {
                         $errors['domains'][$key] = 'Domain already in use';
                     }
                 }
