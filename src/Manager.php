@@ -111,8 +111,8 @@ namespace Plinker\Nginx {
             }
             
             // clean up old setup tasks
-            $this->model->exec('DELETE from tasks WHERE name = "nginx.setup" AND run_count > 0');
-            $this->model->exec('DELETE from tasks WHERE name = "nginx.reload" AND run_count > 0');
+            $this->model->exec(['DELETE from tasks WHERE name = "nginx.setup" AND run_count > 0']);
+            $this->model->exec(['DELETE from tasks WHERE name = "nginx.reload" AND run_count > 0']);
 
             return [
                 'status' => 'success'
