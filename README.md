@@ -89,11 +89,11 @@ Applies build tasks to plinker/tasks queue.
 
     $route = [
         'label' => 'Example',
-        'domains' => [
-            'example.com',
-            'www.example.com'
+        'ownDomain' => [
+            ['name' => 'example.com'],
+            ['name' => 'www.example.com']
         ],
-        'upstreams' => [
+        'ownUpstream' => [
             ['ip' => '127.0.0.1', 'port' => '80']
         ],
         'letsencrypt' => 0,
@@ -105,12 +105,12 @@ Applies build tasks to plinker/tasks queue.
 
     $route = [
         'label' => 'Example Changed',
-        'domains' => [
-            'example.com',
-            'www.example.com',
-            'new.example.com',
+        'ownDomain' => [
+            ['name' => 'example.com'],
+            ['name' => 'www.example.com'],
+            ['name' => 'new.example.com']
         ],
-        'upstreams' => [
+        'ownUpstream' => [
             ['ip' => 10.0.0.1', 'port' => '8080']
         ],
         'letsencrypt' => 0,
