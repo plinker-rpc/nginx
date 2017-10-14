@@ -3,7 +3,7 @@ namespace Plinker\Nginx {
 
     use Plinker\Tasks;
     use Plinker\Redbean\RedBean as Model;
-    
+
     /**
      * Plinker Nginx Manager class
      *
@@ -17,7 +17,7 @@ namespace Plinker\Nginx {
                 'public_key'  => 'makeSomethingUp',
                 'private_key' => 'againMakeSomethingUp'
             ],
-        
+
             // database connection
             'database' => [
                 'dsn'      => 'sqlite:./database.db',
@@ -29,19 +29,19 @@ namespace Plinker\Nginx {
                 'debug'    => false,
             ]
         ];
-        
+
         // init plinker endpoint client
         $nginx = new \Plinker\Core\Client(
             // where is the plinker server
             $config['plinker']['endpoint'],
-        
+
             // component namespace to interface to
             'Nginx\Manager',
-        
+
             // keys
             $config['plinker']['public_key'],
             $config['plinker']['private_key'],
-        
+
             // construct values which you pass to the component
             $config
         );
@@ -70,15 +70,15 @@ namespace Plinker\Nginx {
 
         /**
          * Sets up tasks into \Plinker\Tasks
-         * 
+         *
          * @example
          * <code>
             <?php
             $nginx->setup([
-                'build_sleep' => 1    
+                'build_sleep' => 1
             ])
            </code>
-         * 
+         *
          * @param array $params
          * @return array
          */
@@ -183,22 +183,22 @@ namespace Plinker\Nginx {
         
         /**
          * Get nginx status $nginx->status();
-         * 
+         *
          * @example
          * <code>
             <?php
             $nginx->status()
            </code>
-         * 
+         *
          * @param array $params
          * @return array
          */
         public function status(array $params = array())
         {
             /*
-                Active connections: 2 
+                Active connections: 2
                 server accepts handled requests
-                 8904 8904 8907 
+                 8904 8904 8907
                 Reading: 0 Writing: 2 Waiting: 0
              */
             $return = file_get_contents('http://127.0.0.1/nginx_status');
@@ -208,7 +208,7 @@ namespace Plinker\Nginx {
             $return = [];
             
             //active connections
-            $return['active_connections'] = (int) trim(str_replace('Active connections:', '' , $lines[0]));
+            $return['active_connections'] = (int) trim(str_replace('Active connections:', '', $lines[0]));
             
             // break up line for the following
             $columns = array_values(array_filter(explode(' ', $lines[2]), 'strlen'));
@@ -239,7 +239,7 @@ namespace Plinker\Nginx {
         
         /**
          * Count routes, domains and upstream
-         * 
+         *
          * @example
          * <code>
             <?php
@@ -247,7 +247,7 @@ namespace Plinker\Nginx {
             $nginx->count('route', 'id = ? ', [1]);
             $nginx->count('route', 'name = ? ', ['guidV4-value']);
            </code>
-         * 
+         *
          * @param array $params
          * @return array
          */
@@ -266,7 +266,7 @@ namespace Plinker\Nginx {
         
         /**
          * Fetch routes, domains and upstream
-         * 
+         *
          * @example
          * <code>
             <?php
@@ -274,7 +274,7 @@ namespace Plinker\Nginx {
             $nginx->fetch('route', 'id = ? ', [1]);
             $nginx->fetch('route', 'name = ? ', ['guidV4-value']);
            </code>
-         * 
+         *
          * @param array $params
          * @return array
          */
@@ -298,14 +298,14 @@ namespace Plinker\Nginx {
         
         /**
          * Rebuild route/s
-         * 
+         *
          * @example
          * <code>
             <?php
             $nginx->rebuild('id = ? ', [1]);
             $nginx->rebuild('name = ? ', ['guidV4-value']);
            </code>
-         * 
+         *
          * @param array $params
          * @return array
          */
@@ -345,14 +345,14 @@ namespace Plinker\Nginx {
 
         /**
          * Remove route/s
-         * 
+         *
          * @example
          * <code>
             <?php
             $nginx->remove('id = ? ', [1]);
             $nginx->remove('name = ? ', ['guidV4-value']);
            </code>
-         * 
+         *
          * @param array $params
          * @return array
          */
@@ -398,14 +398,14 @@ namespace Plinker\Nginx {
 
         /**
          * Deletes all route, domain, upstreams and [related tasks]
-         * 
+         *
          * @example
          * <code>
             <?php
             $nginx->reset();     // deletes routes, domains and upstreams
             $nginx->reset(true); // deletes routes, domains, upstreams and tasks
            </code>
-         * 
+         *
          *
          * @param bool $param[0] - remove tasks
          * @return array
@@ -430,7 +430,7 @@ namespace Plinker\Nginx {
         
         /**
          * Generate a GUIv4
-         * 
+         *
          * @return string
          */
         private function guidv4()
@@ -446,16 +446,16 @@ namespace Plinker\Nginx {
         }
 
         /**
-         * Add route, expects structured input and will return with the same 
+         * Add route, expects structured input and will return with the same
          * structure which allows for rolling state.
-         * 
+         *
          * @example
          * <code>
             <?php
             $form = [
                 // form errors
                 'errors' => '',
-                
+
                 // form values
                 'values' => [
                     'label' => 'Example Route',
@@ -472,9 +472,9 @@ namespace Plinker\Nginx {
             ];
 
             $nginx->add($form['values']);
-    
+
            </code>
-         * 
+         *
          * @param array $params
          * @return array
          */
@@ -663,18 +663,18 @@ namespace Plinker\Nginx {
         }
         
         /**
-         * Update route, 
+         * Update route,
          *  - Treat as findOne with additional param for data.
-         *  - Expects structured input and will return with the same structure 
+         *  - Expects structured input and will return with the same structure
          *    which allows for rolling state.
-         * 
+         *
          * @example
          * <code>
             <?php
             $form = [
                 // form errors
                 'errors' => '',
-                
+
                 // form values
                 'values' => [
                     'label' => 'Updated Example Route',
@@ -692,15 +692,15 @@ namespace Plinker\Nginx {
 
             // update by id
             $nginx->update('id = ?', [1], $form['values']);
-            
+
             // update by name
             $nginx->update('name = ?', ['0e5391ac-a37f-41cf-a36b-369df19e592f'], $form['values']);
-            
+
             // update by id and name
             $nginx->update('id = ? AND name = ?', [23, '0e5391ac-a37f-41cf-a36b-369df19e592f'], $form['values']);
-    
+
            </code>
-         * 
+         *
          * @param array $params
          * @return array
          */
