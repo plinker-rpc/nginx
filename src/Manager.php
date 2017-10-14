@@ -311,7 +311,7 @@ namespace Plinker\Nginx {
             }
 
             // validate domains
-            foreach ((array) $data['domains'] as $key => $row) {
+            foreach ((array) $data['ownDomain'] as $key => $row) {
                 $row = strtolower($row);
                 
                 // filter
@@ -350,7 +350,7 @@ namespace Plinker\Nginx {
             }
 
             // validate upstream
-            foreach ((array) $data['upstreams'] as $key => $row) {
+            foreach ((array) $data['ownUpstream'] as $key => $row) {
                 // validate ip
                 if (!filter_var($row['ip'], FILTER_VALIDATE_IP)) {
                     $errors['upstreams'][$key] = 'Invalid IP address';
@@ -392,7 +392,7 @@ namespace Plinker\Nginx {
 
             // create domains
             $domains = [];
-            foreach ((array) $data['domains'] as $row) {
+            foreach ((array) $data['ownDomain'] as $row) {
                 $row = strtolower($row);
                 $domain = $this->model->create([
                     'domain',
@@ -406,22 +406,22 @@ namespace Plinker\Nginx {
 
             // upstreams
             // set first ip back into route
-            if (isset($data['upstreams'][0]['ip'])) {
-                $route->ip = $data['upstreams'][0]['ip'];
+            if (isset($data['ownUpstream'][0]['ip'])) {
+                $route->ip = $data['ownUpstream'][0]['ip'];
             } else {
                 $route->ip = !empty($data['ip']) ? $data['ip'] : '';
             }
 
             // set first port back into route
-            if (isset($data['upstreams'][0]['port'])) {
-                $route->port = (int) $data['upstreams'][0]['port'];
+            if (isset($data['ownUpstream'][0]['port'])) {
+                $route->port = (int) $data['ownUpstream'][0]['port'];
             } else {
                 $route->port = !empty($data['port']) ? preg_replace('/[^0-9]/', '', $data['port']) : '';
             }
 
             // create upstreams
             $upstreams = [];
-            foreach ((array) $data['upstreams'] as $row) {
+            foreach ((array) $data['ownUpstream'] as $row) {
                 $upstream = $this->model->create([
                     'upstream',
                     [
