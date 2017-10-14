@@ -3,11 +3,62 @@ namespace Plinker\Nginx {
 
     use Plinker\Tasks;
     use Plinker\Redbean\RedBean as Model;
-
+    
+    /**
+     * Plinker Nginx Manager class
+     *
+     * @example
+     * <code>
+        <?php
+        $config = [
+            // plinker connection
+            'plinker' => [
+                'endpoint' => 'http://127.0.0.1:88',
+                'public_key'  => 'makeSomethingUp',
+                'private_key' => 'againMakeSomethingUp'
+            ],
+        
+            // database connection
+            'database' => [
+                'dsn'      => 'sqlite:./database.db',
+                'host'     => '',
+                'name'     => '',
+                'username' => '',
+                'password' => '',
+                'freeze'   => false,
+                'debug'    => false,
+            ]
+        ];
+        
+        // init plinker endpoint client
+        $nginx = new \Plinker\Core\Client(
+            // where is the plinker server
+            $config['plinker']['endpoint'],
+        
+            // component namespace to interface to
+            'Nginx\Manager',
+        
+            // keys
+            $config['plinker']['public_key'],
+            $config['plinker']['private_key'],
+        
+            // construct values which you pass to the component
+            $config
+        );
+       </code>
+     *
+     * @package Plinker\Nginx
+     */
     class Manager
     {
+        /**
+         * @var array
+         */
         public $config = array();
 
+        /**
+         * @param array $config config array passed from \Plinker\Core\Client
+         */
         public function __construct(array $config = array())
         {
             $this->config = $config;
@@ -18,7 +69,18 @@ namespace Plinker\Nginx {
         }
 
         /**
-         *
+         * Sets up tasks into \Plinker\Tasks
+         * 
+         * @example
+         * <code>
+            <?php
+            $nginx->setup([
+                'build_sleep' => 1    
+            ])
+           </code>
+         * 
+         * @param array $params
+         * @return array
          */
         public function setup(array $params = array())
         {
@@ -120,12 +182,100 @@ namespace Plinker\Nginx {
         }
         
         /**
-         * Fetch routes, domains and upstream:
-         * @usage:
-         *  all            - $nginx->fetch('route');
-         *  routeById(1)   - $nginx->fetch('route', 'id = ? ', [1]);
-         *  routeByName(1) - $nginx->fetch('route', 'name = ? ', ['guidV4-value'])
-         *
+         * Get nginx status $nginx->status();
+         * 
+         * @example
+         * <code>
+            <?php
+            $nginx->status()
+           </code>
+         * 
+         * @param array $params
+         * @return array
+         */
+        public function status(array $params = array())
+        {
+            /*
+                Active connections: 2 
+                server accepts handled requests
+                 8904 8904 8907 
+                Reading: 0 Writing: 2 Waiting: 0
+             */
+            $return = file_get_contents('http://127.0.0.1/nginx_status');
+            
+            $lines = explode(PHP_EOL, $return);
+            
+            $return = [];
+            
+            //active connections
+            $return['active_connections'] = (int) trim(str_replace('Active connections:', '' , $lines[0]));
+            
+            // break up line for the following
+            $columns = array_values(array_filter(explode(' ', $lines[2]), 'strlen'));
+            //
+            // accepts
+            $return['accepts'] = (int) $columns[0];
+            //
+            // handled
+            $return['handled'] = (int) $columns[1];
+            //
+            //requests
+            $return['requests'] = (int) $columns[1];
+            
+            // break up line for the following
+            $columns = array_values(array_filter(explode(' ', $lines[3]), 'strlen'));
+            //
+            // reading
+            $return['reading'] = (int) $columns[1];
+            
+            // writing
+            $return['writing'] = (int) $columns[3];
+            
+            // waiting
+            $return['waiting'] = (int) $columns[5];
+
+            return $return;
+        }
+        
+        /**
+         * Count routes, domains and upstream
+         * 
+         * @example
+         * <code>
+            <?php
+            $nginx->count('route');
+            $nginx->count('route', 'id = ? ', [1]);
+            $nginx->count('route', 'name = ? ', ['guidV4-value']);
+           </code>
+         * 
+         * @param array $params
+         * @return array
+         */
+        public function count(array $params = array())
+        {
+            if (!empty($params[0]) && !empty($params[1]) && !empty($params[2])) {
+                $result = $this->model->count([$params[0], $params[1], $params[2]]);
+            } elseif (!empty($params[0]) && !empty($params[1])) {
+                $result = $this->model->count([$params[0], $params[1]]);
+            } else {
+                $result = $this->model->count([$params[0]]);
+            }
+
+            return (int) $result;
+        }
+        
+        /**
+         * Fetch routes, domains and upstream
+         * 
+         * @example
+         * <code>
+            <?php
+            $nginx->fetch('route');
+            $nginx->fetch('route', 'id = ? ', [1]);
+            $nginx->fetch('route', 'name = ? ', ['guidV4-value']);
+           </code>
+         * 
+         * @param array $params
          * @return array
          */
         public function fetch(array $params = array())
@@ -147,7 +297,17 @@ namespace Plinker\Nginx {
         }
         
         /**
-         *
+         * Rebuild route/s
+         * 
+         * @example
+         * <code>
+            <?php
+            $nginx->rebuild('id = ? ', [1]);
+            $nginx->rebuild('name = ? ', ['guidV4-value']);
+           </code>
+         * 
+         * @param array $params
+         * @return array
          */
         public function rebuild(array $params = array())
         {
@@ -184,7 +344,17 @@ namespace Plinker\Nginx {
         }
 
         /**
-         *
+         * Remove route/s
+         * 
+         * @example
+         * <code>
+            <?php
+            $nginx->remove('id = ? ', [1]);
+            $nginx->remove('name = ? ', ['guidV4-value']);
+           </code>
+         * 
+         * @param array $params
+         * @return array
          */
         public function remove(array $params = array())
         {
@@ -228,8 +398,17 @@ namespace Plinker\Nginx {
 
         /**
          * Deletes all route, domain, upstreams and [related tasks]
+         * 
+         * @example
+         * <code>
+            <?php
+            $nginx->reset();     // deletes routes, domains and upstreams
+            $nginx->reset(true); // deletes routes, domains, upstreams and tasks
+           </code>
+         * 
          *
          * @param bool $param[0] - remove tasks
+         * @return array
          */
         public function reset(array $params = array())
         {
@@ -251,6 +430,8 @@ namespace Plinker\Nginx {
         
         /**
          * Generate a GUIv4
+         * 
+         * @return string
          */
         private function guidv4()
         {
@@ -265,7 +446,37 @@ namespace Plinker\Nginx {
         }
 
         /**
-         *
+         * Add route, expects structured input and will return with the same 
+         * structure which allows for rolling state.
+         * 
+         * @example
+         * <code>
+            <?php
+            $form = [
+                // form errors
+                'errors' => '',
+                
+                // form values
+                'values' => [
+                    'label' => 'Example Route',
+                    'domains' => [
+                        ['name' => 'example.com'],
+                        ['name' => 'www.example.com']
+                    ],
+                    'upstreams' => [
+                        ['ip' => '10.158.250.5', 'port' => '80']
+                    ],
+                    'letsencrypt' => 0,
+                    'enabled' => 1
+                ]
+            ];
+
+            $nginx->add($form['values']);
+    
+           </code>
+         * 
+         * @param array $params
+         * @return array
          */
         public function add(array $params = array())
         {
@@ -452,14 +663,46 @@ namespace Plinker\Nginx {
         }
         
         /**
-         * Update webforward
-         * - Treat as findOne with additional param for data,
-         *   this allows to update based on any column.
-         *
-         * @usage: $nginx->update('id = ?', [1], $form['values'])
-         *         $nginx->update('name = ?', ['0e5391ac-a37f-41cf-a36b-369df19e592f'], $form['values'])
-         *         $nginx->update('id = ? AND name = ?', [23, '0e5391ac-a37f-41cf-a36b-369df19e592f'], $form['values'])
-         *
+         * Update route, 
+         *  - Treat as findOne with additional param for data.
+         *  - Expects structured input and will return with the same structure 
+         *    which allows for rolling state.
+         * 
+         * @example
+         * <code>
+            <?php
+            $form = [
+                // form errors
+                'errors' => '',
+                
+                // form values
+                'values' => [
+                    'label' => 'Updated Example Route',
+                    'domains' => [
+                        ['name' => 'example.com'],
+                        ['name' => 'www.example.com']
+                    ],
+                    'upstreams' => [
+                        ['ip' => '10.158.250.1', 'port' => '80']
+                    ],
+                    'letsencrypt' => 0,
+                    'enabled' => 1
+                ]
+            ];
+
+            // update by id
+            $nginx->update('id = ?', [1], $form['values']);
+            
+            // update by name
+            $nginx->update('name = ?', ['0e5391ac-a37f-41cf-a36b-369df19e592f'], $form['values']);
+            
+            // update by id and name
+            $nginx->update('id = ? AND name = ?', [23, '0e5391ac-a37f-41cf-a36b-369df19e592f'], $form['values']);
+    
+           </code>
+         * 
+         * @param array $params
+         * @return array
          */
         public function update(array $params = array())
         {
