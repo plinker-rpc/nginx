@@ -141,7 +141,7 @@ namespace Plinker\Nginx {
                         ($params[0]['build_sleep'] ? (int) $params[0]['build_sleep'] : 5)
                     ]
                 );
-                
+
                 // create reconcile task
                 if ($this->model->count(['tasks', 'name = "nginx.reconcile" AND run_count > 0']) > 0) {
                     $this->model->exec(['DELETE from tasks WHERE name = "nginx.reconcile" AND run_count > 0']);
@@ -216,9 +216,9 @@ namespace Plinker\Nginx {
                 'status' => 'success'
             ];
         }
-                
+
         /**
-         * Runs composer update to update package $nginx->update_package();
+         * Runs composer update to update package
          *
          * @example
          * <code>
@@ -234,7 +234,7 @@ namespace Plinker\Nginx {
             // queue nginx.composer_update task
             return $this->tasks->run(['nginx.composer_update', [], 0]);
         }
-        
+
         /**
          * Get nginx status $nginx->status();
          *
@@ -256,14 +256,14 @@ namespace Plinker\Nginx {
                 Reading: 0 Writing: 2 Waiting: 0
              */
             $return = file_get_contents('http://127.0.0.1/nginx_status');
-            
+
             $lines = explode(PHP_EOL, $return);
-            
+
             $return = [];
-            
+
             //active connections
             $return['active_connections'] = (int) trim(str_replace('Active connections:', '', $lines[0]));
-            
+
             // break up line for the following
             $columns = array_values(array_filter(explode(' ', $lines[2]), 'strlen'));
             //
@@ -275,22 +275,22 @@ namespace Plinker\Nginx {
             //
             //requests
             $return['requests'] = (int) $columns[1];
-            
+
             // break up line for the following
             $columns = array_values(array_filter(explode(' ', $lines[3]), 'strlen'));
             //
             // reading
             $return['reading'] = (int) $columns[1];
-            
+
             // writing
             $return['writing'] = (int) $columns[3];
-            
+
             // waiting
             $return['waiting'] = (int) $columns[5];
 
             return $return;
         }
-        
+
         /**
          * Count routes, domains and upstream
          *
@@ -317,7 +317,7 @@ namespace Plinker\Nginx {
 
             return (int) $result;
         }
-        
+
         /**
          * Fetch routes, domains and upstream
          *
@@ -341,15 +341,15 @@ namespace Plinker\Nginx {
             } else {
                 $result = $this->model->findAll([$params[0]]);
             }
-            
+
             $return = [];
             foreach ($result as $row) {
                 $return[] = $this->model->export($row)[0];
             }
-            
+
             return $return;
         }
-        
+
         /**
          * Rebuild route/s
          *
@@ -371,14 +371,14 @@ namespace Plinker\Nginx {
                     'errors' => ['params' => 'First param must be a string']
                 ];
             }
-            
+
             if (!is_array($params[1])) {
                 return [
                     'status' => 'error',
                     'errors' => ['params' => 'Second param must be an array']
                 ];
             }
-            
+
             $route = $this->model->findOne(['route', $params[0], $params[1]]);
 
             if (empty($route)) {
@@ -387,11 +387,11 @@ namespace Plinker\Nginx {
                     'errors' => ['route' => 'Not found']
                 ];
             }
-            
+
             $route->has_change = 1;
 
             $this->model->store($route);
-            
+
             return [
                 'status' => 'success'
             ];
@@ -418,14 +418,14 @@ namespace Plinker\Nginx {
                     'errors' => ['params' => 'First param must be a string']
                 ];
             }
-            
+
             if (!is_array($params[1])) {
                 return [
                     'status' => 'error',
                     'errors' => ['params' => 'Second param must be an array']
                 ];
             }
-            
+
             $route = $this->model->findOne(['route', $params[0], $params[1]]);
 
             if (empty($route)) {
@@ -434,17 +434,17 @@ namespace Plinker\Nginx {
                     'errors' => ['route' => 'Not found']
                 ];
             }
-            
+
             foreach ($route->ownDomain as $domain) {
                 $this->model->trash($domain);
             }
-            
+
             foreach ($route->ownUpstream as $upstream) {
                 $this->model->trash($upstream);
             }
 
             $this->model->trash($route);
-            
+
             return [
                 'status' => 'success'
             ];
@@ -469,7 +469,7 @@ namespace Plinker\Nginx {
             $this->model->exec(['DELETE FROM route']);
             $this->model->exec(['DELETE FROM domain']);
             $this->model->exec(['DELETE FROM upstream']);
-            
+
             if (!empty($params[0])) {
                 $this->model->exec(['DELETE from tasks WHERE name = "nginx.setup"']);
                 $this->model->exec(['DELETE from tasks WHERE name = "nginx.build"']);
@@ -482,7 +482,7 @@ namespace Plinker\Nginx {
                 'status' => 'success'
             ];
         }
-        
+
         /**
          * Generate a GUIv4
          *
@@ -500,18 +500,18 @@ namespace Plinker\Nginx {
                 return trim(com_create_guid(), '{}');
             } else {
                 return sprintf(
-                    '%04x%04x-%04x-%04x-%04x-%04x%04x%04x', 
-                    mt_rand(0, 65535), 
-                    mt_rand(0, 65535), 
-                    mt_rand(0, 65535), 
-                    mt_rand(16384, 20479), 
-                    mt_rand(32768, 49151), 
-                    mt_rand(0, 65535), 
-                    mt_rand(0, 65535), 
+                    '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+                    mt_rand(0, 65535),
+                    mt_rand(0, 65535),
+                    mt_rand(0, 65535),
+                    mt_rand(16384, 20479),
+                    mt_rand(32768, 49151),
+                    mt_rand(0, 65535),
+                    mt_rand(0, 65535),
                     mt_rand(0, 65535)
                 );
             }
-        
+
             $bytes[6] = chr(ord($bytes[6]) & 0x0f | 0x40); // set version to 0100
             $bytes[8] = chr(ord($bytes[8]) & 0x3f | 0x80); // set bits 6-7 to 10
             return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
@@ -553,7 +553,7 @@ namespace Plinker\Nginx {
         public function add(array $params = array())
         {
             $data = $params[0];
-            
+
             $errors = [];
 
             $data['name'] = $this->guidv4();
@@ -596,7 +596,7 @@ namespace Plinker\Nginx {
             // validate domains
             foreach ((array) $data['ownDomain'] as $key => $row) {
                 $row = strtolower($row);
-                
+
                 // filter
                 if (stripos($row, 'http') === 0) {
                     $row = substr($row, 4);
@@ -725,15 +725,15 @@ namespace Plinker\Nginx {
                     'values' => $data
                 ];
             }
-            
+
             $route = $this->model->export($route)[0];
-            
+
             return [
                 'status' => 'success',
                 'values' => $route
             ];
         }
-        
+
         /**
          * Update route,
          *  - Treat as findOne with additional param for data.
@@ -781,11 +781,11 @@ namespace Plinker\Nginx {
             $query = $params[0];
             $id    = (array) $params[1];
             $data  = (array) $params[2];
-            
+
             $errors = [];
-            
+
             $route = $this->model->findOne(['route', $query, $id]);
-            
+
             // check found
             if (empty($route->name)) {
                 return [
@@ -794,7 +794,7 @@ namespace Plinker\Nginx {
                     'values' => $data
                 ];
             }
-            
+
             // dont allow name change
             if (isset($data['name']) && $data['name'] != $route->name) {
                 return [
@@ -857,22 +857,22 @@ namespace Plinker\Nginx {
                     if (stripos($row, '//') === 0) {
                         $row = substr($row, 2);
                     }
-    
+
                     // check for no dots
                     if (!substr_count($row, '.')) {
                         $errors['domains'][$key] = 'Invalid domain name';
                     }
-    
+
                     // has last dot
                     if (substr($row, -1) == '.') {
                         $errors['domains'][$key] = 'Invalid domain name';
                     }
-    
+
                     // validate url
                     if (!filter_var('http://' . $row, FILTER_VALIDATE_URL)) {
                         $errors['domains'][$key] = 'Invalid domain name';
                     }
-    
+
                     // domain already in use by another route
                     if ($this->model->count(['domain', 'name = ? AND route_id != ?', [$row, $route->id]]) > 0) {
                         $errors['domains'][$key] = 'Domain already in use';
@@ -916,7 +916,7 @@ namespace Plinker\Nginx {
             if (isset($data['enabled'])) {
                 $route->enabled  = !empty($data['enabled']);
             }
-            
+
             $route->updated = date_create();
             $route->has_change = 1;
 
@@ -944,14 +944,14 @@ namespace Plinker\Nginx {
                 } else {
                     $route->ip = !empty($data['ip']) ? $data['ip'] : '';
                 }
-    
+
                 // set first port back into route
                 if (isset($data['ownUpstream'][0]['port'])) {
                     $route->port = (int) $data['ownUpstream'][0]['port'];
                 } else {
                     $route->port = !empty($data['port']) ? preg_replace('/[^0-9]/', '', $data['port']) : '';
                 }
-    
+
                 // create upstreams
                 $route->xownUpstreamList = [];
                 $upstreams = [];
@@ -977,9 +977,9 @@ namespace Plinker\Nginx {
                     'values' => $data
                 ];
             }
-            
+
             $route = $this->model->export($route)[0];
-            
+
             return [
                 'status' => 'success',
                 'values' => $route
