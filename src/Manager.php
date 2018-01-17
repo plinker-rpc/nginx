@@ -216,6 +216,24 @@ namespace Plinker\Nginx {
                 'status' => 'success'
             ];
         }
+                
+        /**
+         * Runs composer update to update package $nginx->update_package();
+         *
+         * @example
+         * <code>
+            <?php
+            $nginx->update_package()
+           </code>
+         *
+         * @param array $params
+         * @return array
+         */
+        public function update_package()
+        {
+            // queue task
+            $this->tasks->run(['nginx.composer_update', [], 0]);
+        }
         
         /**
          * Get nginx status $nginx->status();
