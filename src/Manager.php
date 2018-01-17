@@ -231,8 +231,8 @@ namespace Plinker\Nginx {
          */
         public function update_package()
         {
-            // queue task
-            $this->tasks->run(['nginx.composer_update', [], 0]);
+            // queue nginx.composer_update task
+            return $this->tasks->run(['nginx.composer_update', [], 0]);
         }
         
         /**
