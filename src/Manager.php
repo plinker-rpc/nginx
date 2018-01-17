@@ -108,7 +108,7 @@ namespace Plinker\Nginx {
                     // default params
                     []
                 ]);
-                // queue task for run once
+                // queue task
                 $this->tasks->run(['nginx.setup', [], 0]);
 
                 // create build task
@@ -124,7 +124,7 @@ namespace Plinker\Nginx {
                     // default params
                     []
                 ]);
-                // queue task to run every second
+                // queue task
                 $this->tasks->run(
                     [
                         'nginx.build',
@@ -146,12 +146,12 @@ namespace Plinker\Nginx {
                     // default params
                     []
                 ]);
-                // queue task to run every second
+                // queue task
                 $this->tasks->run(
                     [
                         'nginx.reconcile',
                         [],
-                        1
+                        ($params[0]['reconcile_sleep'] ? (int) $params[0]['reconcile_sleep'] : 5)
                     ]
                 );
 
@@ -168,6 +168,23 @@ namespace Plinker\Nginx {
                     // default params
                     []
                 ]);
+
+                // create composer update task
+                // delete
+                $this->model->exec(['DELETE from tasks WHERE name = "nginx.composer_update" AND run_count > 0']);
+                // add
+                $task['nginx.composer_update'] = $this->tasks->create([
+                    // name
+                    'nginx.composer_update',
+                    // source
+                    "#!/bin/bash\ncomposer update plinker/nginx",
+                    // type
+                    'bash',
+                    // description
+                    'Composer update nginx plinker task',
+                    // default params
+                    []
+                ]);
             } catch (\Exception $e) {
                 return $e->getMessage();
             }
@@ -175,6 +192,7 @@ namespace Plinker\Nginx {
             // clean up old setup tasks
             $this->model->exec(['DELETE from tasks WHERE name = "nginx.setup" AND run_count > 0']);
             $this->model->exec(['DELETE from tasks WHERE name = "nginx.reload" AND run_count > 0']);
+            $this->model->exec(['DELETE from tasks WHERE name = "nginx.reconcile" AND run_count > 0']);
 
             return [
                 'status' => 'success'
