@@ -89,7 +89,7 @@ namespace Plinker\Nginx {
                 return [
                     'status' => 'error',
                     'errors' => [
-                        'setup' => 'Nginx not installed! - Read the README.md for setup instructions.'
+                        'global' => 'Nginx not installed! - Read the README.md for setup instructions.'
                     ]
                 ];
             }
@@ -207,7 +207,7 @@ namespace Plinker\Nginx {
                 return [
                     'status' => 'error',
                     'errors' => [
-                        'setup' => $e->getMessage()
+                        'global' => $e->getMessage()
                     ]
                 ];
             }
@@ -368,14 +368,14 @@ namespace Plinker\Nginx {
             if (!is_string($params[0])) {
                 return [
                     'status' => 'error',
-                    'errors' => ['params' => 'First param must be a string']
+                    'errors' => ['global' => 'First param must be a string']
                 ];
             }
 
             if (!is_array($params[1])) {
                 return [
                     'status' => 'error',
-                    'errors' => ['params' => 'Second param must be an array']
+                    'errors' => ['global' => 'Second param must be an array']
                 ];
             }
 
@@ -384,7 +384,7 @@ namespace Plinker\Nginx {
             if (empty($route)) {
                 return [
                     'status' => 'error',
-                    'errors' => ['route' => 'Not found']
+                    'errors' => ['global' => 'Not found']
                 ];
             }
 
@@ -415,14 +415,14 @@ namespace Plinker\Nginx {
             if (!is_string($params[0])) {
                 return [
                     'status' => 'error',
-                    'errors' => ['params' => 'First param must be a string']
+                    'errors' => ['global' => 'First param must be a string']
                 ];
             }
 
             if (!is_array($params[1])) {
                 return [
                     'status' => 'error',
-                    'errors' => ['params' => 'Second param must be an array']
+                    'errors' => ['global' => 'Second param must be an array']
                 ];
             }
 
@@ -431,7 +431,7 @@ namespace Plinker\Nginx {
             if (empty($route)) {
                 return [
                     'status' => 'error',
-                    'errors' => ['route' => 'Not found']
+                    'errors' => ['global' => 'Not found']
                 ];
             }
 
@@ -721,7 +721,7 @@ namespace Plinker\Nginx {
             } catch (\Exception $e) {
                 return [
                     'status' => 'error',
-                    'errors' => ['store' => $e->getMessage()],
+                    'errors' => ['global' => $e->getMessage()],
                     'values' => $data
                 ];
             }
@@ -790,7 +790,7 @@ namespace Plinker\Nginx {
             if (empty($route->name)) {
                 return [
                     'status' => 'error',
-                    'errors' => ['query' => 'Route not found'],
+                    'errors' => ['global' => 'Route not found'],
                     'values' => $data
                 ];
             }
@@ -973,7 +973,7 @@ namespace Plinker\Nginx {
             } catch (\Exception $e) {
                 return [
                     'status' => 'error',
-                    'errors' => ['store' => $e->getMessage()],
+                    'errors' => ['global' => $e->getMessage()],
                     'values' => $data
                 ];
             }
