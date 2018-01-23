@@ -193,7 +193,7 @@ require 'vendor/autoload.php';
     ],
     'debug'        => true,
     'sleep_time'   => 5,
-    'pid_path'     => './pids'
+    'tmp_path'   => './.plinker'
 ]);
 
 \$task->daemon('Queue', [
