@@ -185,7 +185,7 @@ require 'vendor/autoload.php';
 
 \$task = new Plinker\Tasks\Runner([
     'database' => [
-        'dsn'      => 'sqlite:../database.db',
+        'dsn'      => 'sqlite:./.plinker/database.db',
         'host'     => '',
         'name'     => '',
         'username' => '',
