@@ -590,6 +590,20 @@ if (!class_exists('Nginx')) {
     {
         public function __construct($task)
         {
+            $task->config = array_merge([
+                // database connection
+                'database' => [
+                    'dsn'      => 'sqlite:./.plinker/database.db',
+                    'host'     => '',
+                    'name'     => '',
+                    'username' => '',
+                    'password' => '',
+                    'freeze'   => false,
+                    'debug'    => false,
+                ],
+                'tmp_dir' => './.plinker'
+            ], $task->config);
+            
             $this->task = $task;
         }
         
@@ -599,14 +613,14 @@ if (!class_exists('Nginx')) {
         private function log($message)
         {
             if (LOG) {
-                if (!file_exists('./logs')) {
-                    mkdir('./logs', 0775, true);
+                if (!file_exists($this->task->config['tmp_dir'].'/logs')) {
+                    mkdir($this->task->config['tmp_dir'].'/logs', 0775, true);
                 }
                 $log  = '['.date("c").'] '.$message.PHP_EOL;
-                file_put_contents('./logs/'.date("d-m-Y").'.txt', $log, FILE_APPEND);
+                file_put_contents($this->task->config['tmp_dir'].'/logs/'.date("d-m-Y").'.txt', $log, FILE_APPEND);
             }
             
-            echo DEBUG ? "   - ".$message."\n" : null;
+            echo DEBUG ? " - ".$message."\n" : null;
         }
 
         /**
