@@ -23,7 +23,7 @@ if (!class_exists('Nginx')) {
     class Nginx
     {
         /**
-         * 
+         *
          */
         public function __construct($task)
         {
