@@ -1,7 +1,7 @@
 <?php
 namespace Plinker\Nginx {
 
-    use Plinker\Tasks;
+    use Plinker\Tasks\Tasks as TasksManager;
     use Plinker\Redbean\RedBean as Model;
 
     /**
@@ -65,7 +65,7 @@ namespace Plinker\Nginx {
 
             // load models
             $this->model = new Model($this->config['database']);
-            $this->tasks = new Tasks\Manager($this->config);
+            $this->tasks = new TasksManager($this->config);
         }
 
         /**
