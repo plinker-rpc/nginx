@@ -120,6 +120,7 @@ namespace Plinker\Nginx {
                 if ($this->model->count(['tasks', 'name = "nginx.build" AND run_count > 0']) > 0) {
                     $this->model->exec(['DELETE from tasks WHERE name = "nginx.build" AND run_count > 0']);
                 }
+                
                 // add task
                 $task['nginx.build'] = $this->tasks->create([
                     // name
