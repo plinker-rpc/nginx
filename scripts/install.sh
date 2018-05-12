@@ -62,12 +62,24 @@ server {
     server_name _;
     #
     location / {
-        try_files \$uri \$uri/ =404;
+        try_files \$uri \$uri/?\$query_string; =404;
 	}
     #
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php7.0-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    }
+    #
+    location ~ /\.api {
+      deny all;
+      return 403;
+    }
+    #
+    location ~ /\. {
+      deny all;
+      return 403;
     }
     #
     location ~ /\.ht {

@@ -66,7 +66,7 @@ namespace Plinker\Nginx {
      *
      * @package Plinker\Nginx
      */
-    class Manager
+    class Nginx
     {
         /**
          * @var array
