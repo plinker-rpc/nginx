@@ -261,7 +261,7 @@ namespace Plinker\Nginx {
          * @param array $params
          * @return array
          */
-        public function status(array $params = array())
+        public function status()
         {
             /*
                 Active connections: 2
