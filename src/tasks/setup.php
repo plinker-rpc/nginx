@@ -134,7 +134,7 @@ proxy_set_header        X-Forwarded-Proto   $scheme;
 proxy_set_header        X-Forwarded-Port    $server_port;
 
 proxy_set_header        Upgrade             $http_upgrade;
-proxy_set_header        Connection         \'upgrade\';
+proxy_set_header        Connection          \'upgrade\';
 proxy_cache_bypass      $http_upgrade;
 ');
 
