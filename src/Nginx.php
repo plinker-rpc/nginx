@@ -155,7 +155,7 @@ namespace Plinker\Nginx {
                 $this->tasks->run(
                     'nginx.build',
                     [],
-                    ($params[0]['build_sleep'] ? (int) $params[0]['build_sleep'] : 5)
+                    ($params['build_sleep'] ? (int) $params['build_sleep'] : 5)
                 );
 
                 // create reconcile task
@@ -179,7 +179,7 @@ namespace Plinker\Nginx {
                 $this->tasks->run(
                     'nginx.reconcile',
                     [],
-                    ($params[0]['reconcile_sleep'] ? (int) $params[0]['reconcile_sleep'] : 5)
+                    ($params['reconcile_sleep'] ? (int) $params['reconcile_sleep'] : 5)
                 );
 
                 // create nginx reload task
@@ -306,62 +306,61 @@ namespace Plinker\Nginx {
         }
 
         /**
-         * Count routes, domains and upstream
+         * Fetch route rules
          *
-         * @example
-         * <code>
-            <?php
-            $nginx->count('route');
-            $nginx->count('route', 'id = ? ', [1]);
-            $nginx->count('route', 'name = ? ', ['guidV4-value']);
-           </code>
+         * @usage:
+         *  all           - $nginx->fetch();
+         *  ruleById(1)   - $nginx->fetch('id = ? ', [1]);
+         *  ruleByName(1) - $nginx->fetch('name = ? ', ['guidV4-value'])
          *
-         * @param array $params
          * @return array
          */
-        public function count(array $params = array())
+        public function fetch($placeholder = null, array $values = [])
         {
-            if (!empty($params[0]) && !empty($params[1]) && !empty($params[2])) {
-                $result = $this->model->count([$params[0], $params[1], $params[2]]);
-            } elseif (!empty($params[0]) && !empty($params[1])) {
-                $result = $this->model->count([$params[0], $params[1]]);
-            } else {
-                $result = $this->model->count([$params[0]]);
-            }
+            $table = 'route';
 
-            return (int) $result;
-        }
-
-        /**
-         * Fetch routes, domains and upstream
-         *
-         * @example
-         * <code>
-            <?php
-            $nginx->fetch('route');
-            $nginx->fetch('route', 'id = ? ', [1]);
-            $nginx->fetch('route', 'name = ? ', ['guidV4-value']);
-           </code>
-         *
-         * @param array $params
-         * @return array
-         */
-        public function fetch(array $params = array())
-        {
-            if (!empty($params[0]) && !empty($params[1]) && !empty($params[2])) {
-                $result = $this->model->findAll([$params[0], $params[1], $params[2]]);
-            } elseif (!empty($params[0]) && !empty($params[1])) {
-                $result = $this->model->findAll([$params[0], $params[1]]);
+            if (!empty($placeholder) && !empty($values)) {
+                $result = $this->model->findAll([$table, $placeholder, $values]);
+            } elseif (!empty($placeholder)) {
+                $result = $this->model->findAll([$table, $placeholder]);
             } else {
-                $result = $this->model->findAll([$params[0]]);
+                $result = $this->model->findAll([$table]);
             }
 
             $return = [];
-            foreach ($result as $row) {
+            foreach ((array) $result as $row) {
                 $return[] = $this->model->export($row)[0];
             }
 
             return $return;
+        }
+
+        /**
+         * Count
+         *
+         * @example
+         * <code>
+            $nginx->count();
+            $nginx->count('id = ? ', [1]);
+            $nginx->count('name = ? ', ['guidV4-value']);
+           </code>
+         *
+         * @param array $params
+         * @return array
+         */
+        public function count($placeholder = null, array $values = [])
+        {
+            $table = 'route';
+
+            if (!empty($placeholder) && !empty($values)) {
+                $result = $this->model->count([$table, $placeholder, $values]);
+            } elseif (!empty($placeholder)) {
+                $result = $this->model->count([$table, $placeholder]);
+            } else {
+                $result = $this->model->count([$table]);
+            }
+
+            return (int) $result;
         }
 
         /**
@@ -377,23 +376,23 @@ namespace Plinker\Nginx {
          * @param array $params
          * @return array
          */
-        public function rebuild(array $params = array())
+        public function rebuild($placeholder = '', $values = [])
         {
-            if (!is_string($params[0])) {
+            if (!is_string($placeholder)) {
                 return [
                     'status' => 'error',
                     'errors' => ['global' => 'First param must be a string']
                 ];
             }
 
-            if (!is_array($params[1])) {
+            if (!is_array($values)) {
                 return [
                     'status' => 'error',
                     'errors' => ['global' => 'Second param must be an array']
                 ];
             }
 
-            $route = $this->model->findOne(['route', $params[0], $params[1]]);
+            $route = $this->model->findOne(['route', $placeholder, $values]);
 
             if (empty($route)) {
                 return [
@@ -424,23 +423,23 @@ namespace Plinker\Nginx {
          * @param array $params
          * @return array
          */
-        public function remove(array $params = array())
+        public function remove($placeholder = null, array $values = [])
         {
-            if (!is_string($params[0])) {
+            if (!is_string($placeholder)) {
                 return [
                     'status' => 'error',
                     'errors' => ['global' => 'First param must be a string']
                 ];
             }
 
-            if (!is_array($params[1])) {
+            if (!is_array($values)) {
                 return [
                     'status' => 'error',
                     'errors' => ['global' => 'Second param must be an array']
                 ];
             }
 
-            $route = $this->model->findOne(['route', $params[0], $params[1]]);
+            $route = $this->model->findOne(['route', $placeholder, $values]);
 
             if (empty($route)) {
                 return [
@@ -478,13 +477,13 @@ namespace Plinker\Nginx {
          * @param bool $param[0] - remove tasks
          * @return array
          */
-        public function reset(array $params = array())
+        public function reset($purge = false)
         {
             $this->model->exec(['DELETE FROM route']);
             $this->model->exec(['DELETE FROM domain']);
             $this->model->exec(['DELETE FROM upstream']);
 
-            if (!empty($params[0])) {
+            if ($purge) {
                 $this->model->exec(['DELETE from tasks WHERE name = "nginx.setup"']);
                 $this->model->exec(['DELETE from tasks WHERE name = "nginx.build"']);
                 $this->model->exec(['DELETE from tasks WHERE name = "nginx.reconcile"']);
@@ -564,13 +563,9 @@ namespace Plinker\Nginx {
          * @param array $params
          * @return array
          */
-        public function add(array $params = array())
+        public function add(array $data = [])
         {
-            $data = $params[0];
-
             $errors = [];
-
-            $data['name'] = $this->guidv4();
 
             // validate ip - needs to be change to accept an array
             if (isset($data['ip'])) {
@@ -598,13 +593,6 @@ namespace Plinker\Nginx {
                 if (!empty($data['port']) && is_numeric($data['port']) && $data['port'] == 0) {
                     $errors['port'] = 'Invalid port number!';
                 }
-            }
-
-            // check ssl letsencrypt
-            if (!empty($data['letsencrypt'])) {
-                $data['ssl_type'] = 'letsencrypt';
-            } else {
-                $data['ssl_type'] = '';
             }
 
             // validate domains
@@ -669,6 +657,15 @@ namespace Plinker\Nginx {
                     'values' => $data
                 ];
             }
+            
+            // check ssl letsencrypt
+            if (!empty($data['letsencrypt'])) {
+                $data['ssl_type'] = 'letsencrypt';
+            } else {
+                $data['ssl_type'] = '';
+            }
+            
+            $data['name'] = $this->guidv4();
 
             // create route
             $route = $this->model->create([
@@ -790,15 +787,11 @@ namespace Plinker\Nginx {
          * @param array $params
          * @return array
          */
-        public function update(array $params = array())
+        public function update($placeholder = '', $values = [], $data = [])
         {
-            $query = $params[0];
-            $id    = (array) $params[1];
-            $data  = (array) $params[2];
-
             $errors = [];
 
-            $route = $this->model->findOne(['route', $query, $id]);
+            $route = $this->model->findOne(['route', $placeholder, $values]);
 
             // check found
             if (empty($route->name)) {
@@ -922,13 +915,13 @@ namespace Plinker\Nginx {
 
             // update route
             if (isset($data['label'])) {
-                $route->label    = $data['label'];
+                $route->label = $data['label'];
             }
             if (isset($data['ssl_type'])) {
                 $route->ssl_type = preg_replace('/[^a-z]/i', '', $data['ssl_type']);
             }
             if (isset($data['enabled'])) {
-                $route->enabled  = !empty($data['enabled']);
+                $route->enabled = !empty($data['enabled']);
             }
 
             $route->updated = date_create();

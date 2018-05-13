@@ -232,6 +232,10 @@ server {
                 echo DEBUG ? $this->log('Using LetsEncrypt certificate.') : null;
 
                 $sslPath = '/etc/letsencrypt/live';
+                
+                if (!file_exists($sslPath)) {
+                    mkdir($sslPath, 0755, true);
+                }
 
                 echo DEBUG ? $this->log('Certificate will be written to: '.$sslPath.'/'.$domains[0]) : null;
 
