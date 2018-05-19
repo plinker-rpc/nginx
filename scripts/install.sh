@@ -55,7 +55,7 @@ install_nginx() {
 server {
     listen 88 default_server;
     listen [::]:88 default_server;
-    root /var/www/html;
+    root /var/www/html/public;
     #
     index index.php index.html index.htm;
     #
