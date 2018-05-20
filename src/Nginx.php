@@ -126,7 +126,7 @@ namespace Plinker\Nginx {
                     // type
                     'php',
                     // description
-                    'Sets up nginx for plinker',
+                    'Configures nginx module.',
                     // default params
                     []
                 );
@@ -147,7 +147,7 @@ namespace Plinker\Nginx {
                     // type
                     'php',
                     // description
-                    'Builds nginx',
+                    'Builds nginx configuration files.',
                     // default params
                     []
                 );
@@ -171,7 +171,7 @@ namespace Plinker\Nginx {
                     // type
                     'php',
                     // description
-                    'Reconciles nginx filesystem and database',
+                    'Reconciles nginx configuration and database.',
                     // default params
                     []
                 );
@@ -195,25 +195,25 @@ namespace Plinker\Nginx {
                     // type
                     'bash',
                     // description
-                    'Reloads nginx',
+                    'Reloads nginx server.',
                     // default params
                     []
                 );
 
                 // create composer update task
-                if ($this->model->count(['tasks', 'name = "nginx.composer_update" AND run_count > 0']) > 0) {
-                    $this->model->exec(['DELETE from tasks WHERE name = "nginx.composer_update" AND run_count > 0']);
+                if ($this->model->count(['tasks', 'name = "nginx.auto_update" AND run_count > 0']) > 0) {
+                    $this->model->exec(['DELETE from tasks WHERE name = "nginx.auto_update" AND run_count > 0']);
                 }
                 // add
-                $task['nginx.composer_update'] = $this->tasks->create(
+                $task['nginx.auto_update'] = $this->tasks->create(
                     // name
-                    'nginx.composer_update',
+                    'nginx.auto_update',
                     // source
                     "#!/bin/bash\ncomposer update plinker/nginx",
                     // type
                     'bash',
                     // description
-                    'Composer update nginx plinker task',
+                    'Auto update nginx module code.',
                     // default params
                     []
                 );
@@ -245,8 +245,8 @@ namespace Plinker\Nginx {
          */
         public function update_package()
         {
-            // queue nginx.composer_update task
-            return $this->tasks->run(['nginx.composer_update', [], 0]);
+            // queue nginx.auto_update task
+            return $this->tasks->run(['nginx.auto_update', [], 0]);
         }
 
         /**
@@ -488,7 +488,7 @@ namespace Plinker\Nginx {
                 $this->model->exec(['DELETE from tasks WHERE name = "nginx.build"']);
                 $this->model->exec(['DELETE from tasks WHERE name = "nginx.reconcile"']);
                 $this->model->exec(['DELETE from tasks WHERE name = "nginx.reload"']);
-                $this->model->exec(['DELETE from tasks WHERE name = "nginx.composer_update"']);
+                $this->model->exec(['DELETE from tasks WHERE name = "nginx.auto_update"']);
             }
 
             return [
