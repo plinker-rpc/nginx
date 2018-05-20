@@ -55,20 +55,20 @@ install_nginx() {
 server {
     listen 88 default_server;
     listen [::]:88 default_server;
-    root /var/www/html;
+    root /var/www/html/public;
     #
     index index.php index.html index.htm;
     #
     server_name _;
     #
     location / {
-        try_files \$uri \$uri/?\$query_string; =404;
+        try_files \$uri \$uri/?\$query_string =404;
 	}
     #
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php7.0-fpm.sock;
-        fastcgi_index index.php;
+        #fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
     }
     #
@@ -90,7 +90,7 @@ server {
         deny all;
     }
 }
-" > /etc/nginx/sites-available/default
+" > /etc/nginx/sites-enabled/default
     #
     nginx -s reload
 }
@@ -223,15 +223,15 @@ require 'vendor/autoload.php';
 #
 main() {
     #
-    setup_system
+    #setup_system
     #
-    install_php
+    #install_php
     #
-    install_composer
+    #install_composer
     #
     install_nginx
     #
-    install_project
+    #install_project
     #
     echo "Install finished."
 }
