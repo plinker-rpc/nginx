@@ -57,19 +57,19 @@ server {
     listen [::]:88 default_server;
     root /var/www/html/public;
     #
-    index index.php index.html index.htm;
+    index index.php;
     #
     server_name _;
     #
     location / {
-        try_files \$uri \$uri/?\$query_string =404;
-	}
+        try_files \$uri \$uri/ /index.php?\$args;
+    }
     #
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php7.0-fpm.sock;
-        #fastcgi_index index.php;
+        fastcgi_pass unix:$(find /run/php/php*-fpm.sock);
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param SCRIPT_NAME     \$fastcgi_script_name;
     }
     #
     location ~ /\.api {

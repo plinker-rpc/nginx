@@ -82,40 +82,42 @@ server {
 }
 
 server {
-	listen 88 default_server;
-	listen [::]:88 default_server;
-
-	root /var/www/html/public;
-
-	index index.html index.php;
-
-	server_name _;
-
-	location / {
-		try_files $uri $uri/ /index.php?$args;
-	}
-
-	# pass PHP scripts to FastCGI server
-	#
-	location ~ \.php$ {
-		include snippets/fastcgi-php.conf;
-
-		# With php-fpm (or other unix sockets):
-		fastcgi_pass unix:/var/run/php/php7.0-fpm.sock;
-		# With php-cgi (or other tcp sockets):
-		#fastcgi_pass 127.0.0.1:9000;
-	}
-
-	# deny access to .htaccess files, if Apache\'s document root
-	# concurs with nginx\'s one
-	#
-	location ~ /\.ht {
-		deny all;
-	}
-
-	location ~ /.*\.db {
-		deny all;
-	}
+    listen 88 default_server;
+    listen [::]:88 default_server;
+    root /var/www/html/public;
+    #
+    index index.php;
+    #
+    server_name _;
+    #
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+    #
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:'.trim(`find /run/php/php*-fpm.sock`).';
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param SCRIPT_NAME     $fastcgi_script_name;
+    }
+    #
+    location ~ /\.api {
+      deny all;
+      return 403;
+    }
+    #
+    location ~ /\. {
+      deny all;
+      return 403;
+    }
+    #
+    location ~ /\.ht {
+        deny all;
+    }
+    #
+    location ~ /.*\.db {
+        deny all;
+    }
 }
 ');
 
@@ -222,15 +224,17 @@ http {
 }');
 
 #
-# fix cgi.fix-pathinfo
+# fix cgi.fix-pathinfo, upto php 7.10 - maybe change to finding out the dir
 #
-if (file_exists('/etc/php/7.0/fpm/php.ini')) {
-    file_put_contents(
-        '/etc/php/7.0/fpm/php.ini',
-        str_replace(
-            ';cgi.fix_pathinfo=1',
-            'cgi.fix_pathinfo=0',
-            file_get_contents('/etc/php/7.0/fpm/php.ini')
-        )
-    );
+for ($i = 0;$i <= 10; $i++) {
+    if (file_exists('/etc/php/7.'.$i.'/fpm/php.ini')) {
+        file_put_contents(
+            '/etc/php/7.'.$i.'/fpm/php.ini',
+            str_replace(
+                ';cgi.fix_pathinfo=1',
+                'cgi.fix_pathinfo=0',
+                file_get_contents('/etc/php/7.'.$i.'/fpm/php.ini')
+            )
+        );
+    }
 }
