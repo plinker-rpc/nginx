@@ -191,7 +191,7 @@ namespace Plinker\Nginx {
                     // name
                     'nginx.reload',
                     // source
-                    "#!/bin/bash\nnginx -s reload",
+                    "#!/bin/bash\nif service --status-all | grep -Fq 'nginx'; then\n  nginx -s reload\nfi",
                     // type
                     'bash',
                     // description
