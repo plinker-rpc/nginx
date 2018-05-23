@@ -128,7 +128,7 @@ namespace Plinker\Nginx {
                     // description
                     'Configures nginx module.',
                     // default params
-                    []
+                    $params
                 );
                 // queue task
                 $this->tasks->run('nginx.setup', [], 0);
@@ -149,12 +149,12 @@ namespace Plinker\Nginx {
                     // description
                     'Builds nginx configuration files.',
                     // default params
-                    []
+                    $params
                 );
                 // queue task
                 $this->tasks->run(
                     'nginx.build',
-                    [],
+                    $params,
                     ($params['build_sleep'] ? (int) $params['build_sleep'] : 5)
                 );
 
@@ -173,12 +173,12 @@ namespace Plinker\Nginx {
                     // description
                     'Reconciles nginx configuration and database.',
                     // default params
-                    []
+                    $params
                 );
                 // queue task
                 $this->tasks->run(
                     'nginx.reconcile',
-                    [],
+                    $params,
                     ($params['reconcile_sleep'] ? (int) $params['reconcile_sleep'] : 5)
                 );
 
@@ -197,7 +197,7 @@ namespace Plinker\Nginx {
                     // description
                     'Reloads nginx server.',
                     // default params
-                    []
+                    $params
                 );
 
                 // create composer update task
@@ -215,8 +215,14 @@ namespace Plinker\Nginx {
                     // description
                     'Auto update nginx module code.',
                     // default params
-                    []
+                    $params
                 );
+                // queue task to run every second
+                $this->tasks->run(
+                    'nginx.auto_update',
+                    $params,
+                    86400
+                 );
             } catch (\Exception $e) {
                 return [
                     'status' => 'error',
@@ -246,7 +252,7 @@ namespace Plinker\Nginx {
         public function update_package()
         {
             // queue nginx.auto_update task
-            return $this->tasks->run(['nginx.auto_update', [], 0]);
+            return $this->tasks->run('nginx.auto_update', [], 0);
         }
 
         /**
