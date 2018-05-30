@@ -152,35 +152,6 @@ ssl_prefer_server_ciphers on;
 ');
 
 #
-#/etc/nginx/proxied/includes/error_pages.conf
-#
-file_put_contents('/etc/nginx/proxied/includes/error_pages.conf', '#
-# redirect server error pages
-error_page 500 /500.html;
-location = /500.html {
-    root /usr/share/nginx/html/errors;
-    #internal;
-}
-
-error_page 502 /502.html;
-location = /502.html {
-    root /usr/share/nginx/html/errors;
-    #internal;
-}
-
-error_page 503 /503.html;
-location = /503.html {
-    root /usr/share/nginx/html/errors;
-    #internal;
-}
-
-error_page 504 /504.html;
-location = /504.html {
-    root /usr/share/nginx/html/errors;
-    #internal;
-}');
-
-#
 #/etc/nginx/nginx.conf
 #
 file_put_contents('/etc/nginx/nginx.conf', '#
@@ -238,3 +209,5 @@ for ($i = 0;$i <= 10; $i++) {
         );
     }
 }
+
+echo `nginx -s reload`;
