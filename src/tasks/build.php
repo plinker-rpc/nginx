@@ -52,17 +52,16 @@ if (!class_exists('Nginx')) {
          */
         private function log($message)
         {
+            echo DEBUG ? " - ".$message."\n" : null;
             if (LOG) {
                 if (!file_exists(TMP_DIR.'/logs')) {
                     mkdir(TMP_DIR.'/logs', 0755, true);
                 }
                 $log  = '['.date("c").'] '.$message.PHP_EOL;
-                file_put_contents(TMP_DIR.'/logs/'.date("d-m-Y").'.txt', $log, FILE_APPEND);
+                file_put_contents(TMP_DIR.'/logs/nginx.'.date("d-m-Y").'.txt', $log, FILE_APPEND);
                 
                 shell_exec('chown www-data:www-data '.TMP_DIR.'/logs -R');
             }
-            
-            echo DEBUG ? " - ".$message."\n" : null;
         }
 
         /**
@@ -1003,3 +1002,7 @@ $nginx = new Nginx($this);
 $routes = $this->find('route', 'has_change = 1');
 
 $nginx->build($routes);
+
+if (LOG) {
+    echo file_get_contents(TMP_DIR.'/logs/nginx.'.date("d-m-Y").'.txt');
+}
