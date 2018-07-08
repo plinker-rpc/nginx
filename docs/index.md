@@ -120,6 +120,7 @@ Add a web proxy rule.
             ['ip' => '10.158.250.5', 'port' => '80']
         ],
         'letsencrypt' => 1,
+        'forcessl' => 1,
         'enabled' => 1
     ]);
     
@@ -135,6 +136,7 @@ Array
             [label] => My website nginx route
             [name] => c094c6c1-0fa1-40f1-af66-60e173e8dbac
             [ssl_type] => letsencrypt
+            [forcessl] => 1
             [added] => 2018-05-13 17:25:51
             [updated] => 2018-05-13 17:25:51
             [has_change] => 1
@@ -201,6 +203,7 @@ Update a web proxy rule.
             ['ip' => '10.158.250.5', 'port' => '80']
         ],
         'letsencrypt' => 0,
+        'forcessl' => 0,
         'enabled' => 1
     ]);
     
@@ -217,6 +220,7 @@ Array
             [label] => Example
             [name] => b2f78de7-5994-4c21-9c55-76cefe327a67
             [ssl_type] => 
+            [forcessl] => 0
             [added] => 2018-05-12 20:17:09
             [updated] => 2018-05-13 17:28:50
             [has_change] => 1

@@ -680,6 +680,7 @@ namespace Plinker\Nginx {
                     'label'      => (!empty($data['label']) ? $data['label'] : '-'),
                     'name'       => $data['name'],
                     'ssl_type'   => (!empty($data['ssl_type']) ? preg_replace('/[^a-z]/i', '', $data['ssl_type']) : ''),
+                    'forcessl'   => !empty($data['forcessl']),
                     'added'      => date_create(),
                     'updated'    => date_create(),
                     'has_change' => 1,
@@ -929,6 +930,8 @@ namespace Plinker\Nginx {
             if (isset($data['enabled'])) {
                 $route->enabled = !empty($data['enabled']);
             }
+            
+            $route->forcessl = !empty($data['forcessl']);
 
             $route->updated = date_create();
             $route->has_change = 1;

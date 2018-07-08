@@ -15,7 +15,7 @@
  | Authors: Lawrence Cherone <lawrence@cherone.co.uk>                     |
  +------------------------------------------------------------------------+
  */
- 
+
 /**
  * Task Build NGINX
  */
@@ -46,7 +46,7 @@ if (!class_exists('Nginx')) {
         {
             $this->task = $task;
         }
-        
+
         /**
          *
          */
@@ -59,7 +59,7 @@ if (!class_exists('Nginx')) {
                 }
                 $log  = '['.date("c").'] '.$message.PHP_EOL;
                 file_put_contents(TMP_DIR.'/logs/nginx.'.date("d-m-Y").'.txt', $log, FILE_APPEND);
-                
+
                 shell_exec('chown www-data:www-data '.TMP_DIR.'/logs -R');
             }
         }
@@ -93,21 +93,21 @@ if (!class_exists('Nginx')) {
                     $row->has_error = true;
                     $this->task->store($row);
                 }
-                
+
                 if (!$this->config_http($row)) {
                     echo DEBUG ? $this->log('NGINX was not reloaded - http.conf - check log for error!') : null;
                     $restart_nginx = false;
                     $row->has_error = true;
                     $this->task->store($row);
                 }
-                
+
                 if (!$this->config_https($row)) {
                     echo DEBUG ? $this->log('NGINX was not reloaded - https.conf - check log for error!') : null;
                     $restart_nginx = false;
                     $row->has_error = true;
                     $this->task->store($row);
                 }
-                
+
                 $row->has_change = 0;
                 $this->task->store($row);
             }
@@ -116,7 +116,7 @@ if (!class_exists('Nginx')) {
             if ($restart_nginx === true) {
                 if ($this->config_test_nginx()) {
                     exec('/usr/sbin/nginx -s reload 2>&1', $out, $exit_code);
-                    
+
                     echo DEBUG ? $this->log('Reloading NGINX: [exit code: '.$exit_code.']: '.print_r($out, true)) : null;
 
                     // out is not empty
@@ -130,7 +130,7 @@ if (!class_exists('Nginx')) {
                 } else {
                     echo DEBUG ? $this->log('NGINX was not reloaded.') : null;
                 }
-                
+
                 echo DEBUG ? $this->log(str_repeat('-', 40)) : null;
             }
 
@@ -180,9 +180,11 @@ server {
 
     # send request back to backend
     location / {
+        '.(!empty($row['forcessl']) ? '# force SSL - 301 redirect'.PHP_EOL.'    return 301 https://$host$request_uri;' : '').'
+
         #
         proxy_bind $server_addr;
-        
+
         # change to upstream directive e.g http://backend
         proxy_pass  http://'.$row['name'].';
 
@@ -215,7 +217,7 @@ server {
                 }
                 return true;
             }
-            
+
             echo DEBUG ? $this->log('Building NGINX HTTPS server config.') : null;
 
             $sslPath = null;
@@ -231,7 +233,7 @@ server {
                 echo DEBUG ? $this->log('Using LetsEncrypt certificate.') : null;
 
                 $sslPath = '/etc/letsencrypt/live';
-                
+
                 if (!file_exists($sslPath)) {
                     mkdir($sslPath, 0755, true);
                 }
@@ -318,7 +320,7 @@ server {
 
                         // varify certificate date.
                         $certdata = openssl_x509_parse(file_get_contents($sslPath.'/'.$domains[0].'/cert.pem'));
-                        
+
                         echo DEBUG ? $this->log('Certificate: cert.pem - domain expires on '.date('d/m/Y h:i:s', $certdata['validTo_time_t'])): null;
 
                         // update control host with the certificates expiry date
@@ -382,7 +384,7 @@ server {
     location / {
         #
         proxy_bind $server_addr;
-        
+
         # change to upstream directive e.g http://backend
         proxy_pass  http://'.$row['name'].';
 
