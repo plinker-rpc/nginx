@@ -180,7 +180,8 @@ server {
 
     # send request back to backend
     location / {
-        '.(!empty($row['forcessl']) ? '# force SSL - 301 redirect'.PHP_EOL.'    return 301 https://$host$request_uri;' : '').'
+        '.(!empty($row['forcessl']) ? '# force SSL - 301 redirect' : '').'
+        '.(!empty($row['forcessl']) ? 'return 301 https://$host$request_uri;' : '').'
 
         #
         proxy_bind $server_addr;
