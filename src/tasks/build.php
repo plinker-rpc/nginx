@@ -20,8 +20,8 @@
  * Task Build NGINX
  */
 
-if (!empty($this->task->config['debug']) && !defined('DEBUG')) {
-    define('DEBUG', true);
+if (!defined('DEBUG')) {
+    define('DEBUG', !empty($this->task->config['debug']));
 }
 
 if (!defined('TMP_DIR')) {
