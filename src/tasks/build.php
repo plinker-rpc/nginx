@@ -3,7 +3,7 @@
  +------------------------------------------------------------------------+
  | Plinker-RPC PHP                                                        |
  +------------------------------------------------------------------------+
- | Copyright (c)2017-2019 (https://github.com/plinker-rpc/core)           |
+ | Copyright (c)2017-2020 (https://github.com/plinker-rpc/core)           |
  +------------------------------------------------------------------------+
  | This source file is subject to MIT License                             |
  | that is bundled with this package in the file LICENSE.                 |
