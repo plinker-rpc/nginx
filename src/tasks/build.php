@@ -32,9 +32,18 @@ if (!defined('LOG')) {
     define('LOG', !empty($this->task->config['log']));
 }
 
-if (!defined('LETS_ENCRYPT_LICENSE')) {
-    define('LETS_ENCRYPT_LICENSE', 'https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf');
+// ACHTUNG! change this
+if (!defined('LETS_ENCRYPT_CONTACT_EMAIL')) {
+    define('LETS_ENCRYPT_CONTACT_EMAIL', 'lawrence@cherone.co.uk');
 }
+
+if (!defined('LETS_ENCRYPT_CERTS_PATH')) {
+    define('LETS_ENCRYPT_CERTS_PATH', '/etc/letsencrypt/live');
+}
+
+// if (!defined('LETS_ENCRYPT_LICENSE')) {
+//     define('LETS_ENCRYPT_LICENSE', 'https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf');
+// }
 
 if (!class_exists('Nginx')) {
     class Nginx
@@ -225,8 +234,6 @@ server {
             
             echo DEBUG ? $this->log('Building NGINX HTTPS server config.') : null;
 
-            $sslPath = null;
-
             $domains = [];
             foreach ($row->ownDomain as $domain) {
                 $domains[] = $domain->name;
@@ -235,27 +242,25 @@ server {
             // check certs for letsencrypt
             if (isset($row['ssl_type']) && $row['ssl_type'] == 'letsencrypt') {
                 date_default_timezone_set("UTC");
-                echo DEBUG ? $this->log('Using LetsEncrypt certificate.') : null;
+                echo DEBUG ? $this->log('Using LetsEncrypt 2.0 certificate.') : null;
 
-                $sslPath = '/etc/letsencrypt/live';
-                
-                if (!file_exists($sslPath)) {
-                    mkdir($sslPath, 0755, true);
+                if (!file_exists(LETS_ENCRYPT_CERTS_PATH)) {
+                    mkdir(LETS_ENCRYPT_CERTS_PATH, 0755, true);
                 }
 
-                echo DEBUG ? $this->log('Certificate will be written to: '.$sslPath.'/'.$domains[0]) : null;
+                echo DEBUG ? $this->log('Certificate will be written to: '.LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0]) : null;
 
                 // make sure our cert location exists
-                if (!is_dir($sslPath)) {
+                if (!is_dir(LETS_ENCRYPT_CERTS_PATH)) {
                     echo DEBUG ? $this->log('Certs path is not a directory.') : null;
                     // Make sure nothing is already there.
-                    if (file_exists($sslPath)) {
+                    if (file_exists(LETS_ENCRYPT_CERTS_PATH)) {
                         echo DEBUG ? $this->log('Removing existing path contents ready for certificate.') : null;
-                        array_map('unlink', glob("$sslPath/*.*"));
-                        rmdir($sslPath);
+                        array_map('unlink', glob(LETS_ENCRYPT_CERTS_PATH."/*.*"));
+                        rmdir(LETS_ENCRYPT_CERTS_PATH);
                     }
                     echo DEBUG ? $this->log('Certificates directory created.') : null;
-                    mkdir($sslPath);
+                    mkdir(LETS_ENCRYPT_CERTS_PATH);
                 }
 
                 // do we need to create or upgrade our cert? Assume no to start with.
@@ -265,20 +270,21 @@ server {
                 echo DEBUG ? $this->log(count($domains).' domains for certificate') : null;
 
                 // the first domain is the main domain used
-                $certfile = $sslPath.'/'.$domains[0].'/cert.pem';
+                $certfile = LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0].'/fullchain.pem';
                 echo DEBUG ? $this->log('Certificate: '.$certfile) : null;
 
                 //
                 if (!file_exists($certfile)) {
-                    echo DEBUG ? $this->log('Certificate: cert.pem - no exsiting certificate found, triggering initial generation.') : null;
+                    echo DEBUG ? $this->log('Certificate: fullchain.pem - no exsiting certificate found, triggering initial generation.') : null;
                     // we don't have a cert, so we need to request one.
                     $needsgen = true;
                 } else {
-                    echo DEBUG ? $this->log('Certificate: cert.pem - found exsiting certificate, checking validity.') : null;
+                    
+                    echo DEBUG ? $this->log('Certificate: fullchain.pem - found exsiting certificate, checking validity.') : null;
 
                     // varify certificate date.
                     $certdata = openssl_x509_parse(file_get_contents($certfile));
-                    echo DEBUG ? $this->log('Certificate: cert.pem - domain expires '.date('d/m/Y h:i:s', $certdata['validTo_time_t'])) : null;
+                    echo DEBUG ? $this->log('Certificate: fullchain.pem - domain expires '.date('d/m/Y h:i:s', $certdata['validTo_time_t'])) : null;
 
                     // if it expires in less than a month, we want to renew it.
                     $renewafter = $certdata['validTo_time_t']-(86400*30);
@@ -300,10 +306,86 @@ server {
                 // we need to generate a certificate
                 if ($needsgen) {
                     $error = null;
+
+                    $generateRSAKeys = function ($outputDirectory) {
+                        $res = openssl_pkey_new(array(
+                            "private_key_type" => OPENSSL_KEYTYPE_RSA,
+                            "private_key_bits" => 4096,
+                        ));
+
+                        if (!openssl_pkey_export($res, $privateKey)) {
+                            throw new \RuntimeException("Key export failed!");
+                        }
+
+                        $details = openssl_pkey_get_details($res);
+
+                        if (!is_dir($outputDirectory)) {
+                            @mkdir($outputDirectory, 0700, true);
+                        }
+                        if (!is_dir($outputDirectory)) {
+                            throw new \RuntimeException("Cant't create directory $outputDirectory");
+                        }
+
+                        file_put_contents($outputDirectory.'/private.pem', $privateKey);
+                        file_put_contents($outputDirectory.'/public.pem', $details['key']);
+                    };
+
                     try {
-                        $le = new LetsEncrypt($sslPath, '/usr/share/nginx/html/letsencrypt');
-                        $le->initAccount();
-                        $le->signDomains($domains);
+                        //
+                        $ac = new ACMECert(false);
+
+                        if (!is_file(LETS_ENCRYPT_CERTS_PATH.'/_account/private.pem')) {
+                            echo DEBUG ? $this->log('Starting new account registration.') : null;
+
+                            // gen key
+                            $generateRSAKeys(LETS_ENCRYPT_CERTS_PATH.'/_account');
+
+                            // register
+                            $ac->loadAccountKey('file://'.LETS_ENCRYPT_CERTS_PATH.'/_account/account_key.pem');
+                            $ret = $ac->register(true, LETS_ENCRYPT_CONTACT_EMAIL);
+
+                            // result
+                            echo DEBUG ? $this->log(print_r($ret, true)) : null;
+                        } else {
+                            echo DEBUG ? $this->log('Account already registered. Continuing.') : null;
+                        }
+
+                        $ac->loadAccountKey('file://'.LETS_ENCRYPT_CERTS_PATH.'/_account/account_key.pem');
+
+                        // create domains config from domains
+                        $domain_config = [];
+                        foreach ($domains as $key => $value) {
+                            $domain_config[$value] = [
+                                'challenge' => 'http-01', 'docroot' => '/usr/share/nginx/html/letsencrypt/'.$value
+                            ];
+                        }
+
+                        $handler = function($opts) {
+                            $fn = $opts['config']['docroot'].$opts['key'];
+                            @mkdir(dirname($fn),0777, true);
+                            file_put_contents($fn,$opts['value']);
+                            return function ($opts) {
+                                unlink($opts['config']['docroot'].$opts['key']);
+                            };
+                        };
+
+                        $readPrivateKey = function($path){
+                            if (($key = openssl_pkey_get_private('file://' . $path)) === false) {
+                                throw new \RuntimeException(openssl_error_string());
+                            }
+                            return $key;
+                        };
+
+                        //
+                        $domainPath = LETS_ENCRYPT_CERTS_PATH.'/'.array_keys($domains)[0];
+
+                        // generate private key for domain if not exist
+                        if (!is_dir($domainPath) || !is_file($domainPath . '/private.pem')) {
+                            $generateRSAKeys($domainPath);
+                        }
+
+                        $fullchain = $ac->getCertificateChain('file://'.$domainPath . '/private.pem', $domain_config, $handler);
+                        file_put_contents($domainPath.'/fullchain.pem', $fullchain);
                     } catch (\Exception $e) {
                         $row->has_error = 1;
                         $row->error = json_encode($e);
@@ -316,15 +398,15 @@ server {
                     if (empty($error)) {
                         // concat certs into single domain.tld.pem
                         file_put_contents(
-                            "$sslPath/{$domains[0]}/{$domains[0]}.pem",
-                            file_get_contents("$sslPath/{$domains[0]}/fullchain.pem")."\n".
-                            file_get_contents("$sslPath/{$domains[0]}/private.pem")
+                            LETS_ENCRYPT_CERTS_PATH."/{$domains[0]}/{$domains[0]}.pem",
+                            file_get_contents(LETS_ENCRYPT_CERTS_PATH."{$domains[0]}/fullchain.pem")."\n".
+                            file_get_contents(LETS_ENCRYPT_CERTS_PATH."{$domains[0]}/private.pem")
                         );
 
-                        echo DEBUG ? $this->log('Certificate: '.PHP_EOL.file_get_contents($sslPath.'/'.$domains[0].'/'.$domains[0].'.pem')) : null;
+                        echo DEBUG ? $this->log('Certificate: '.PHP_EOL.file_get_contents(LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0].'/'.$domains[0].'.pem')) : null;
 
                         // varify certificate date.
-                        $certdata = openssl_x509_parse(file_get_contents($sslPath.'/'.$domains[0].'/cert.pem'));
+                        $certdata = openssl_x509_parse(file_get_contents(LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0].'/cert.pem'));
                         
                         echo DEBUG ? $this->log('Certificate: cert.pem - domain expires on '.date('d/m/Y h:i:s', $certdata['validTo_time_t'])): null;
 
@@ -340,18 +422,16 @@ server {
             // check certs for manual ssl
             if (isset($row['ssl_type']) && $row['ssl_type'] == 'manual') {
                 echo DEBUG ? $this->log('SSL is type manual.') : null;
-                $sslPath = '/etc/ssl/live/'.$domains[0];
             }
 
             // check certs for manual ssl
             if (isset($row['ssl_type']) && $row['ssl_type'] == 'selfsigned') {
                 echo DEBUG ? $this->log('SSL is type selfsigned.') : null;
-                $sslPath = '/etc/ssl/selfsigned';
             }
 
-            if (empty($sslPath) ||
-                !file_exists($sslPath.'/'.$domains[0].'/fullchain.pem') ||
-                !file_exists($sslPath.'/'.$domains[0].'/private.pem')
+            if (empty(LETS_ENCRYPT_CERTS_PATH) ||
+                !file_exists(LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0].'/fullchain.pem') ||
+                !file_exists(LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0].'/private.pem')
                ) {
                 echo DEBUG ? $this->log('No SSL to setup.') : null;
                 return true;
@@ -380,8 +460,8 @@ server {
     # include /etc/nginx/proxied/includes/error_pages.conf;
 
     # add ssl certs
-    ssl_certificate      '.$sslPath.'/'.$domains[0].'/fullchain.pem;
-    ssl_certificate_key  '.$sslPath.'/'.$domains[0].'/private.pem;
+    ssl_certificate      '.LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0].'/fullchain.pem;
+    ssl_certificate_key  '.LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0].'/private.pem;
 
     # add ssl seetings
     include /etc/nginx/proxied/includes/ssl.conf;
@@ -435,578 +515,1346 @@ server {
     }
 }
 
-if (!class_exists('LetsEncrypt')) {
-    class LetsEncrypt
-    {
-        public $ca = 'https://acme-v01.api.letsencrypt.org';
-        //public $ca = 'https://acme-staging.api.letsencrypt.org'; // sandbox
-
-        public $countryCode = 'GB';
-        public $state = "Great Britain";
-        public $challenge = 'http-01'; // http-01 challange only
-        public $contact = array();
-        public $last_result = '';
-        private $certificatesDir;
-        private $webRootDir;
-        private $runner;
-        private $client;
-        private $accountKeyPath;
-
-        /**
-         *
-         */
-        public function __construct($certificatesDir, $webRootDir, ClientInterface $client = null)
-        {
-            $this->certificatesDir = $certificatesDir;
-            $this->webRootDir = $webRootDir;
-            $this->client = $client ? $client : new Client($this->ca);
-            $this->accountKeyPath = $certificatesDir . '/_account/private.pem';
-        }
-
-        /**
-         *
-         */
-        public function initAccount($force = false)
-        {
-            if (!is_file($this->accountKeyPath) || $force) {
-                $this->log('Starting new account registration');
-                $this->generateKey(dirname($this->accountKeyPath));
-                $this->postNewReg();
-                $this->log('New account certificate registered');
-            } else {
-                $this->log('Account already registered. Continuing.');
-            }
-        }
-
-        /**
-         *
-         */
-        public function signDomains(array $domains, $reuseCsr = false)
-        {
-            startDomainSigning:
-
-            $this->log('Starting certificate generation process for domains');
-
-            $privateAccountKey = $this->readPrivateKey($this->accountKeyPath);
-            $accountKeyDetails = openssl_pkey_get_details($privateAccountKey);
-
-            foreach ($domains as $domain) {
-                $this->log("Requesting challenge for $domain");
-
-                $response = $this->signedRequest(
-                    "/acme/new-authz",
-                    array("resource" => "new-authz", "identifier" => array("type" => "dns", "value" => $domain))
-                );
-
-                $response = json_decode($response, true);
-
-                if (empty($response['challenges'])) {
-
-                    // check expired letsencrypt registration
-                    if ($response['detail'] == 'No registration exists matching provided key' && $response['status'] == 403) {
-                        $this->log('Account expired due to 403 response from LetsEncrypt. Attempting to create new account!');
-                        sleep(5);
-                        $this->initAccount(true);
-                        goto startDomainSigning;
-                    }
-
-                    throw new \RuntimeException("1. HTTP Challenge for $domain is not available. Whole response: " . print_r($response, true));
-                }
-
-                $self = $this;
-                $challenge = array_reduce($response['challenges'], function ($v, $w) use (&$self) {
-                    return $v ? $v : ($w['type'] == $self->challenge ? $w : false);
-                });
-
-                if (!$challenge) {
-                    throw new \RuntimeException("2. HTTP Challenge for $domain is not available. Whole response: ".print_r($response, true));
-                }
-
-                $this->log("Got challenge token for $domain");
-                $location = $this->client->getLastLocation();
-
-                $directory = $this->webRootDir . '/.well-known/acme-challenge';
-                $tokenPath = $directory . '/' . $challenge['token'];
-
-                if (!file_exists($directory) && !@mkdir($directory, 0755, true)) {
-                    throw new \RuntimeException("Couldn't create directory to expose challenge: ${tokenPath}");
-                }
-
-                $header = array(
-                    // need to be in precise order!
-                    "e" => Base64UrlSafeEncoder::encode($accountKeyDetails["rsa"]["e"]),
-                    "kty" => "RSA",
-                    "n" => Base64UrlSafeEncoder::encode($accountKeyDetails["rsa"]["n"])
-
-                );
-                $payload = $challenge['token'] . '.' . Base64UrlSafeEncoder::encode(hash('sha256', json_encode($header), true));
-
-                file_put_contents($tokenPath, $payload);
-                chmod($tokenPath, 0644);
-
-                // 3. verification process itself
-                $uri = "http://${domain}/.well-known/acme-challenge/${challenge['token']}";
-
-                $this->log("Token for $domain saved at $tokenPath and should be available at $uri");
-
-                // simple self check
-                if ($payload !== trim(@file_get_contents($uri))) {
-                    throw new \RuntimeException("Please check $uri - token not available");
-                }
-
-                $this->log("Sending request to challenge");
-
-                // send request to challenge
-                $result = $this->signedRequest(
-                    $challenge['uri'],
-                    array(
-                        "resource" => "challenge",
-                        "type" => $this->challenge,
-                        "keyAuthorization" => $payload,
-                        "token" => $challenge['token']
-                    )
-                );
-
-                $result = json_decode($result, true);
-
-                // waiting loop
-                do {
-                    if (empty($result['status']) || $result['status'] == "invalid") {
-                        throw new \RuntimeException("Verification ended with error: " . print_r($result, true));
-                    }
-                    $ended = !($result['status'] === "pending");
-
-                    if (!$ended) {
-                        $this->log("Verification pending, sleeping 1s");
-                        sleep(1);
-                    }
-
-                    $result = $this->client->get($location);
-
-                    $result = json_decode($result, true);
-                } while (!$ended);
-
-                $this->log("Verification ended with status: ".$result['status']);
-                @unlink($tokenPath);
-            }
-
-            // requesting certificate
-            $domainPath = $this->getDomainPath(reset($domains));
-
-            // generate private key for domain if not exist
-            if (!is_dir($domainPath) || !is_file($domainPath . '/private.pem')) {
-                $this->generateKey($domainPath);
-            }
-
-            // load domain key
-            $privateDomainKey = $this->readPrivateKey($domainPath . '/private.pem');
-
-            $this->client->getLastLinks();
-
-            $csr = ($reuseCsr && is_file($domainPath . "/last.csr")) ?
-                $this->getCsrContent($domainPath . "/last.csr") :
-            $this->generateCSR($privateDomainKey, $domains);
-
-            // request certificates creation
-            $result = $this->signedRequest(
-                "/acme/new-cert",
-                array('resource' => 'new-cert', 'csr' => $csr)
-            );
-
-            if ($this->client->getLastCode() !== 201) {
-                $this->last_result = json_encode($result);
-                throw new \RuntimeException("Invalid response code: " . $this->client->getLastCode() . ", " . json_encode($result));
-            }
-            $location = $this->client->getLastLocation();
-
-            // waiting loop
-            $certificates = array();
-            while (1) {
-                $this->client->getLastLinks();
-
-                $result = $this->client->get($location);
-
-                if ($this->client->getLastCode() == 202) {
-                    $this->log("Certificate generation pending, sleeping 1s");
-                    sleep(1);
-                } elseif ($this->client->getLastCode() == 200) {
-                    $this->log("Got certificate! YAY!");
-                    $certificates[] = $this->parsePemFromBody($result);
-
-                    foreach ($this->client->getLastLinks() as $link) {
-                        $this->log("Requesting chained cert at $link");
-                        $result = $this->client->get($link);
-                        $certificates[] = $this->parsePemFromBody($result);
-                    }
-
-                    break;
-                } else {
-                    throw new \RuntimeException("Can't get certificate: HTTP code " . $this->client->getLastCode());
-                }
-            }
-
-            if (empty($certificates)) {
-                throw new \RuntimeException('No certificates generated');
-            }
-
-            $this->log("Saving fullchain.pem");
-            file_put_contents($domainPath . '/fullchain.pem', implode("\n", $certificates));
-
-            $this->log("Saving cert.pem");
-            file_put_contents($domainPath . '/cert.pem', array_shift($certificates));
-
-            $this->log("Saving chain.pem");
-            file_put_contents($domainPath . "/chain.pem", implode("\n", $certificates));
-
-            $this->log("Done!");
-        }
-
-        /**
-         *
-         */
-        private function readPrivateKey($path)
-        {
-            if (($key = openssl_pkey_get_private('file://' . $path)) === false) {
-                throw new \RuntimeException(openssl_error_string());
-            }
-
-            return $key;
-        }
-
-        /**
-         *
-         */
-        private function parsePemFromBody($body)
-        {
-            $pem = chunk_split(base64_encode($body), 64, "\n");
-            return "-----BEGIN CERTIFICATE-----\n" . $pem . "-----END CERTIFICATE-----\n";
-        }
-
-        /**
-         *
-         */
-        private function getDomainPath($domain)
-        {
-            return $this->certificatesDir . '/' . $domain . '/';
-        }
-
-        /**
-         *
-         */
-        private function postNewReg()
-        {
-            $this->log('Sending registration to letsencrypt server');
-
-            $data = array('resource' => 'new-reg', 'agreement' => LETS_ENCRYPT_LICENSE);
-            if (!$this->contact) {
-                $data['contact'] = $this->contact;
-            }
-
-            return $this->signedRequest(
-                '/acme/new-reg',
-                $data
-            );
-        }
-
-        /**
-         *
-         */
-        private function generateCSR($privateKey, array $domains)
-        {
-            $domain = reset($domains);
-            $san = implode(",", array_map(function ($dns) {
-                return "DNS:" . $dns;
-            }, $domains));
-            $tmpConf = tmpfile();
-            $tmpConfMeta = stream_get_meta_data($tmpConf);
-            $tmpConfPath = $tmpConfMeta["uri"];
-
-            // workaround to get SAN working
-            fwrite(
-                $tmpConf,
-                   'HOME = .
-RANDFILE = $ENV::HOME/.rnd
-[ req ]
-default_bits = 2048
-default_keyfile = privkey.pem
-distinguished_name = req_distinguished_name
-req_extensions = v3_req
-[ req_distinguished_name ]
-countryName = Country Name (2 letter code)
-[ v3_req ]
-basicConstraints = CA:FALSE
-subjectAltName = ' . $san . '
-keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
-            );
-
-            $csr = openssl_csr_new(
-                array(
-                    "CN" => $domain,
-                    "ST" => $this->state,
-                    "C" => $this->countryCode,
-                    "O" => "Unknown",
-                ),
-                $privateKey,
-                array(
-                    "config" => $tmpConfPath,
-                    "digest_alg" => "sha256"
-                )
-            );
-
-            if (!$csr) {
-                throw new \RuntimeException("CSR couldn't be generated! " . openssl_error_string());
-            }
-
-            openssl_csr_export($csr, $csr);
-            fclose($tmpConf);
-
-            $csrPath = $this->getDomainPath($domain) . "/last.csr";
-            file_put_contents($csrPath, $csr);
-
-            return $this->getCsrContent($csrPath);
-        }
-
-        /**
-         *
-         */
-        private function getCsrContent($csrPath)
-        {
-            $csr = file_get_contents($csrPath);
-
-            preg_match('~REQUEST-----(.*)-----END~s', $csr, $matches);
-
-            return trim(Base64UrlSafeEncoder::encode(base64_decode($matches[1])));
-        }
-
-        /**
-         *
-         */
-        private function generateKey($outputDirectory)
-        {
-            $res = openssl_pkey_new(array(
-                "private_key_type" => OPENSSL_KEYTYPE_RSA,
-                "private_key_bits" => 4096,
+if (!class_exists('ACMECert')) {
+    
+    /*
+    MIT License
+
+    Copyright (c) 2018 Stefan Körfgen
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+    */
+
+    // https://github.com/skoerfgen/ACMECert
+
+    class ACMECert extends ACMEv2 { // ACMECert - PHP client library for Let's Encrypt (ACME v2)
+
+        public function register($termsOfServiceAgreed=false,$contacts=array()){
+            $this->log('Registering account');
+
+            $ret=$this->request('newAccount',array(
+                'termsOfServiceAgreed'=>(bool)$termsOfServiceAgreed,
+                'contact'=>$this->make_contacts_array($contacts)
             ));
-
-            if (!openssl_pkey_export($res, $privateKey)) {
-                throw new \RuntimeException("Key export failed!");
-            }
-
-            $details = openssl_pkey_get_details($res);
-
-            if (!is_dir($outputDirectory)) {
-                @mkdir($outputDirectory, 0700, true);
-            }
-            if (!is_dir($outputDirectory)) {
-                throw new \RuntimeException("Cant't create directory $outputDirectory");
-            }
-
-            file_put_contents($outputDirectory.'/private.pem', $privateKey);
-            file_put_contents($outputDirectory.'/public.pem', $details['key']);
+            $this->log($ret['code']==201?'Account registered':'Account already registered');
+            return $ret['body'];
         }
 
-        /**
-         *
-         */
-        private function signedRequest($uri, array $payload)
-        {
-            $privateKey = $this->readPrivateKey($this->accountKeyPath);
-            $details = openssl_pkey_get_details($privateKey);
+        public function update($contacts=array()){
+            $this->log('Updating account');
+            $ret=$this->request($this->getAccountID(),array(
+                'contact'=>$this->make_contacts_array($contacts)
+            ));
+            $this->log('Account updated');
+            return $ret['body'];
+        }
 
-            $header = array(
-                "alg" => "RS256",
-                "jwk" => array(
-                    "kty" => "RSA",
-                    "n" => Base64UrlSafeEncoder::encode($details["rsa"]["n"]),
-                    "e" => Base64UrlSafeEncoder::encode($details["rsa"]["e"]),
+        public function getAccount(){
+            $ret=parent::getAccount();
+            return $ret['body'];
+        }
+
+        public function deactivateAccount(){
+            $this->log('Deactivating account');
+            $ret=$this->deactivate($this->getAccountID());
+            $this->log('Account deactivated');
+            return $ret;
+        }
+
+        public function deactivate($url){
+            $this->log('Deactivating resource: '.$url);
+            $ret=$this->request($url,array('status'=>'deactivated'));
+            $this->log('Resource deactivated');
+            return $ret['body'];
+        }
+
+        public function keyChange($new_account_key_pem){ // account key roll-over
+            $ac2=new ACMEv2();
+            $ac2->loadAccountKey($new_account_key_pem);
+            $account=$this->getAccountID();
+            $ac2->resources=$this->resources;
+
+            $this->log('Account Key Roll-Over');
+
+            $ret=$this->request('keyChange',
+                $ac2->jws_encapsulate('keyChange',array(
+                    'account'=>$account,
+                    'oldKey'=>$this->jwk_header['jwk']
+                ),true)
+            );
+            $this->log('Account Key Roll-Over successful');
+
+            $this->loadAccountKey($new_account_key_pem);
+            return $ret['body'];
+        }
+
+        public function revoke($pem){
+            if (false===($res=openssl_x509_read($pem))){
+                throw new Exception('Could not load certificate: '.$pem.' ('.$this->get_openssl_error().')');
+            }
+            if (false===(openssl_x509_export($res,$certificate))){
+                throw new Exception('Could not export certificate: '.$pem.' ('.$this->get_openssl_error().')');
+            }
+
+            $this->log('Revoking certificate');
+            $this->request('revokeCert',array(
+                'certificate'=>$this->base64url($this->pem2der($certificate))
+            ));
+            $this->log('Certificate revoked');
+        }
+
+        public function getCertificateChain($pem,$domain_config,$callback){
+            $domain_config=array_change_key_case($domain_config,CASE_LOWER);
+            $domains=array_keys($domain_config);
+
+            // autodetect if Private Key or CSR is used
+            if ($key=openssl_pkey_get_private($pem)){ // Private Key detected
+                openssl_free_key($key);
+                $this->log('Generating CSR');
+                $csr=$this->generateCSR($pem,$domains);
+            }elseif(openssl_csr_get_subject($pem)){ // CSR detected
+                $this->log('Using provided CSR');
+                if (0===strpos($pem,'file://')) {
+                    $csr=file_get_contents(substr($pem,7));
+                    if (false===$csr) {
+                        throw new Exception('Failed to read CSR from '.$pem.' ('.$this->get_openssl_error().')');
+                    }
+                }else{
+                    $csr=$pem;
+                }
+            }else{
+                throw new Exception('Could not load Private Key or CSR ('.$this->get_openssl_error().'): '.$pem);
+            }
+
+            $this->getAccountID(); // get account info upfront to avoid mixed up logging order
+
+            // === Order ===
+            $this->log('Creating Order');
+            $ret=$this->request('newOrder',array(
+                'identifiers'=>array_map(
+                    function($domain){
+                        return array('type'=>'dns','value'=>$domain);
+                    },
+                    $domains
+                )
+            ));
+            $order=$ret['body'];
+            $order_location=$ret['headers']['location'];
+            $this->log('Order created: '.$order_location);
+
+            // === Authorization ===
+            if ($order['status']==='ready') {
+                $this->log('All authorizations already valid, skipping validation altogether');
+            }else{
+                $groups=array();
+                $auth_count=count($order['authorizations']);
+
+                foreach($order['authorizations'] as $idx=>$auth_url){
+                    $this->log('Fetching authorization '.($idx+1).' of '.$auth_count);
+                    $ret=$this->request($auth_url,'');
+                    $authorization=$ret['body'];
+
+                    // wildcard authorization identifiers have no leading *.
+                    $domain=( // get domain and add leading *. if wildcard is used
+                        isset($authorization['wildcard']) &&
+                        $authorization['wildcard'] ?
+                        '*.':''
+                    ).$authorization['identifier']['value'];
+
+                    if ($authorization['status']==='valid') {
+                        $this->log('Authorization of '.$domain.' already valid, skipping validation');
+                        continue;
+                    }
+
+                    // groups are used to be able to set more than one TXT Record for one subdomain
+                    // when using dns-01 before firing the validation to avoid DNS caching problem
+                    $groups[
+                        $domain_config[$domain]['challenge'].
+                        '|'.
+                        ltrim($domain,'*.')
+                    ][$domain]=array($auth_url,$authorization);
+                }
+
+                // make sure dns-01 comes last to avoid DNS problems for other challenges
+                krsort($groups);
+
+                foreach($groups as $group){
+                    $pending_challenges=array();
+
+                    try { // make sure that pending challenges are cleaned up in case of failure
+                        foreach($group as $domain=>$arr){
+                            list($auth_url,$authorization)=$arr;
+
+                            $config=$domain_config[$domain];
+                            $type=$config['challenge'];
+
+                            $challenge=$this->parse_challenges($authorization,$type,$challenge_url);
+
+                            $opts=array(
+                                'domain'=>$domain,
+                                'config'=>$config
+                            );
+                            list($opts['key'],$opts['value'])=$challenge;
+
+                            $this->log('Triggering challenge callback for '.$domain.' using '.$type);
+                            $remove_cb=$callback($opts);
+
+                            $pending_challenges[]=array($remove_cb,$opts,$challenge_url,$auth_url);
+                        }
+
+                        foreach($pending_challenges as $arr){
+                            list($remove_cb,$opts,$challenge_url,$auth_url)=$arr;
+                            $this->log('Notifying server for validation of '.$opts['domain']);
+                            $this->request($challenge_url,new StdClass);
+
+                            $this->log('Waiting for server challenge validation');
+                            sleep(1);
+
+                            if (!$this->poll('pending',$auth_url,$body)) {
+                                $this->log('Validation failed: '.$opts['domain']);
+
+                                $ret=array_values(array_filter($body['challenges'],function($item){
+                                    return isset($item['error']);
+                                }));
+
+                                $error=$ret[0]['error'];
+                                throw new ACME_Exception($error['type'],'Challenge validation failed: '.$error['detail']);
+                            }else{
+                                $this->log('Validation successful: '.$opts['domain']);
+                            }
+                        }
+
+                    }finally{ // cleanup pending challenges
+                        foreach($pending_challenges as $arr){
+                            list($remove_cb,$opts)=$arr;
+                            if ($remove_cb) {
+                                $this->log('Triggering remove callback for '.$opts['domain']);
+                                $remove_cb($opts);
+                            }
+                        }
+                    }
+                }
+            }
+
+            $this->log('Finalizing Order');
+
+            $ret=$this->request($order['finalize'],array(
+                'csr'=>$this->base64url($this->pem2der($csr))
+            ));
+            $ret=$ret['body'];
+
+            if (isset($ret['certificate'])) {
+                return $this->request_certificate($ret);
+            }
+
+            if ($this->poll('processing',$order_location,$ret)) {
+                return $this->request_certificate($ret);
+            }
+
+            throw new Exception('Order failed');
+        }
+
+        public function generateCSR($domain_key_pem,$domains){
+            if (false===($domain_key=openssl_pkey_get_private($domain_key_pem))){
+                throw new Exception('Could not load domain key: '.$domain_key_pem.' ('.$this->get_openssl_error().')');
+            }
+
+            $fn=$this->tmp_ssl_cnf($domains);
+            $dn=array('commonName'=>reset($domains));
+            $csr=openssl_csr_new($dn,$domain_key,array(
+                'config'=>$fn,
+                'req_extensions'=>'SAN',
+                'digest_alg'=>'sha512'
+            ));
+            unlink($fn);
+            openssl_free_key($domain_key);
+
+            if (false===$csr) {
+                throw new Exception('Could not generate CSR ! ('.$this->get_openssl_error().')');
+            }
+            if (false===openssl_csr_export($csr,$out)){
+                throw new Exception('Could not export CSR ! ('.$this->get_openssl_error().')');
+            }
+
+            return $out;
+        }
+
+        private function generateKey($opts){
+            $fn=$this->tmp_ssl_cnf();
+            $config=array('config'=>$fn)+$opts;
+            if (false===($key=openssl_pkey_new($config))){
+                throw new Exception('Could not generate new private key ! ('.$this->get_openssl_error().')');
+            }
+            if (false===openssl_pkey_export($key,$pem,null,$config)){
+                throw new Exception('Could not export private key ! ('.$this->get_openssl_error().')');
+            }
+            unlink($fn);
+            openssl_free_key($key);
+            return $pem;
+        }
+        
+        public function generateRSAKey($bits=2048){
+            return $this->generateKey(array(
+                'private_key_bits'=>$bits,
+                'private_key_type'=>OPENSSL_KEYTYPE_RSA
+            ));
+        }
+        
+        public function generateECKey($curve_name='P-384'){
+            if (version_compare(PHP_VERSION,'7.1.0')<0) throw new Exception('PHP >= 7.1.0 required for EC keys !');
+            $map=array('P-256'=>'prime256v1','P-384'=>'secp384r1','P-521'=>'secp521r1');
+            if (isset($map[$curve_name])) $curve_name=$map[$curve_name];
+            return $this->generateKey(array(
+                'curve_name'=>$curve_name,
+                'private_key_type'=>OPENSSL_KEYTYPE_EC
+            ));
+        }
+        
+        public function parseCertificate($cert_pem){
+            if (false===($ret=openssl_x509_read($cert_pem))) {
+                throw new Exception('Could not load certificate: '.$cert_pem.' ('.$this->get_openssl_error().')');
+            }
+            if (!is_array($ret=openssl_x509_parse($ret,true))) {
+                throw new Exception('Could not parse certificate ('.$this->get_openssl_error().')');
+            }
+            return $ret;
+        }
+
+        public function getRemainingDays($cert_pem){
+            $ret=$this->parseCertificate($cert_pem);
+            return ($ret['validTo_time_t']-time())/86400;
+        }
+
+        public function generateALPNCertificate($domain_key_pem,$domain,$token){
+            $domains=array($domain);
+            $csr=$this->generateCSR($domain_key_pem,$domains);
+
+            $fn=$this->tmp_ssl_cnf($domains,'1.3.6.1.5.5.7.1.31=critical,DER:0420'.$token."\n");
+            $config=array(
+                'config'=>$fn,
+                'x509_extensions'=>'SAN',
+                'digest_alg'=>'sha512'
+            );
+            $cert=openssl_csr_sign($csr,null,$domain_key_pem,1,$config);
+            unlink($fn);
+            if (false===$cert) {
+                throw new Exception('Could not generate self signed certificate ! ('.$this->get_openssl_error().')');
+            }
+            if (false===openssl_x509_export($cert,$out)){
+                throw new Exception('Could not export self signed certificate ! ('.$this->get_openssl_error().')');
+            }
+            return $out;
+        }
+
+        private function parse_challenges($authorization,$type,&$url){
+            foreach($authorization['challenges'] as $challenge){
+                if ($challenge['type']!=$type) continue;
+
+                $url=$challenge['url'];
+
+                switch($challenge['type']){
+                    case 'dns-01':
+                        return array(
+                            '_acme-challenge.'.$authorization['identifier']['value'],
+                            $this->base64url(hash('sha256',$this->keyAuthorization($challenge['token']),true))
+                        );
+                    break;
+                    case 'http-01':
+                        return array(
+                            '/.well-known/acme-challenge/'.$challenge['token'],
+                            $this->keyAuthorization($challenge['token'])
+                        );
+                    break;
+                    case 'tls-alpn-01':
+                        return array(null,hash('sha256',$this->keyAuthorization($challenge['token'])));
+                    break;
+                }
+            }
+            throw new Exception('Challenge type: "'.$type.'" not available');
+        }
+
+        private function poll($initial,$type,&$ret){
+            $max_tries=8;
+            for($i=0;$i<$max_tries;$i++){
+                $ret=$this->request($type);
+                $ret=$ret['body'];
+                if ($ret['status']!==$initial) return $ret['status']==='valid';
+                $s=pow(2,min($i,6));
+                if ($i!==$max_tries-1){
+                    $this->log('Retrying in '.($s).'s');
+                    sleep($s);
+                }
+            }
+            throw new Exception('Aborted after '.$max_tries.' tries');
+        }
+
+        private function request_certificate($ret){
+            $this->log('Requesting certificate-chain');
+            $ret=$this->request($ret['certificate'],'');
+            if ($ret['headers']['content-type']!=='application/pem-certificate-chain'){
+                throw new Exception('Unexpected content-type: '.$ret['headers']['content-type']);
+            }
+            $this->log('Certificate-chain retrieved');
+            return $ret['body'];
+        }
+
+        private function tmp_ssl_cnf($domains=null,$extension=''){
+            if (false===($fn=tempnam(sys_get_temp_dir(), "CNF_"))){
+                throw new Exception('Failed to create temp file !');
+            }
+            if (false===@file_put_contents($fn,
+                'HOME = .'."\n".
+                'RANDFILE=$ENV::HOME/.rnd'."\n".
+                '[v3_ca]'."\n".
+                '[req]'."\n".
+                'default_bits=2048'."\n".
+                ($domains?
+                    'distinguished_name=req_distinguished_name'."\n".
+                    '[req_distinguished_name]'."\n".
+                    '[v3_req]'."\n".
+                    '[SAN]'."\n".
+                    'subjectAltName='.
+                    implode(',',array_map(function($domain){
+                        return 'DNS:'.$domain;
+                    },$domains))."\n"
+                :
+                    ''
+                ).$extension
+            )){
+                throw new Exception('Failed to write tmp file: '.$fn);
+            }
+            return $fn;
+        }
+
+        private function pem2der($pem) {
+            return base64_decode(implode('',array_slice(
+                array_map('trim',explode("\n",trim($pem))),1,-1
+            )));
+        }
+
+        private function make_contacts_array($contacts){
+            if (!is_array($contacts)) {
+                $contacts=$contacts?array($contacts):array();
+            }
+            return array_map(function($contact){
+                return 'mailto:'.$contact;
+            },$contacts);
+        }
+    }
+
+    class ACMEv2 { // Communication with Let's Encrypt via ACME v2 protocol
+
+        protected
+            $directories=array(
+                'live'=>'https://acme-v02.api.letsencrypt.org/directory',
+                'staging'=>'https://acme-staging-v02.api.letsencrypt.org/directory'
+            ),$ch=null,$bits,$sha_bits,$directory,$resources,$jwk_header,$kid_header,$account_key,$thumbprint,$nonce,$mode;
+
+        public function __construct($live=true){
+            $this->directory=$this->directories[$this->mode=($live?'live':'staging')];
+        }
+
+        public function __destruct(){
+            if ($this->account_key) openssl_pkey_free($this->account_key);
+            if ($this->ch) curl_close($this->ch);
+        }
+
+        public function loadAccountKey($account_key_pem){
+            if ($this->account_key) openssl_pkey_free($this->account_key);
+            if (false===($this->account_key=openssl_pkey_get_private($account_key_pem))){
+                throw new Exception('Could not load account key: '.$account_key_pem.' ('.$this->get_openssl_error().')');
+            }
+
+            if (false===($details=openssl_pkey_get_details($this->account_key))){
+                throw new Exception('Could not get account key details: '.$account_key_pem.' ('.$this->get_openssl_error().')');
+            }
+
+            $this->bits=$details['bits'];
+            switch($details['type']){
+                case OPENSSL_KEYTYPE_EC:
+                    if (version_compare(PHP_VERSION,'7.1.0')<0) throw new Exception('PHP >= 7.1.0 required for EC keys !');
+                    $this->sha_bits=($this->bits==521?512:$this->bits);
+                    $this->jwk_header=array( // JOSE Header - RFC7515
+                        'alg'=>'ES'.$this->sha_bits,
+                        'jwk'=>array( // JSON Web Key
+                            'crv'=>'P-'.$details['bits'],
+                            'kty'=>'EC',
+                            'x'=>$this->base64url(str_pad($details['ec']['x'],ceil($this->bits/8),"\x00",STR_PAD_LEFT)),
+                            'y'=>$this->base64url(str_pad($details['ec']['y'],ceil($this->bits/8),"\x00",STR_PAD_LEFT))
+                        )
+                    );
+                break;
+                case OPENSSL_KEYTYPE_RSA:
+                    $this->sha_bits=256;
+                    $this->jwk_header=array( // JOSE Header - RFC7515
+                        'alg'=>'RS256',
+                        'jwk'=>array( // JSON Web Key
+                            'e'=>$this->base64url($details['rsa']['e']), // public exponent
+                            'kty'=>'RSA',
+                            'n'=>$this->base64url($details['rsa']['n']) // public modulus
+                        )
+                    );
+                break;
+                default:
+                    throw new Exception('Unsupported key type! Must be RSA or EC key.');
+                break;
+            }
+
+            $this->kid_header=array(
+                'alg'=>$this->jwk_header['alg'],
+                'kid'=>null
+            );
+
+            $this->thumbprint=$this->base64url( // JSON Web Key (JWK) Thumbprint - RFC7638
+                hash(
+                    'sha256',
+                    json_encode($this->jwk_header['jwk']),
+                    true
                 )
             );
-
-            $protected = $header;
-            $protected["nonce"] = $this->client->getLastNonce();
-
-
-            $payload64 = Base64UrlSafeEncoder::encode(str_replace('\\/', '/', json_encode($payload)));
-            $protected64 = Base64UrlSafeEncoder::encode(json_encode($protected));
-
-            openssl_sign($protected64.'.'.$payload64, $signed, $privateKey, "SHA256");
-
-            $signed64 = Base64UrlSafeEncoder::encode($signed);
-
-            $data = array(
-                'header' => $header,
-                'protected' => $protected64,
-                'payload' => $payload64,
-                'signature' => $signed64
-            );
-
-            $this->log("Sending signed request to $uri");
-
-            return $this->client->post($uri, json_encode($data));
         }
 
-        /**
-         *
-         */
-        protected function log($message)
-        {
-            $log  = '['.date("F j, Y, g:i a").'] '.$message.PHP_EOL;
-            file_put_contents('./.plinker/logs/letsencrypt_'.date("j.n.Y").'.txt', $log, FILE_APPEND);
-            echo $message."\n";
-        }
-    }
-
-    interface ClientInterface
-    {
-        public function __construct($base);
-        public function post($url, $data);
-        public function get($url);
-        public function getLastNonce();
-        public function getLastLocation();
-        public function getLastCode();
-        public function getLastLinks();
-    }
-
-    class Client implements ClientInterface
-    {
-        private $lastCode;
-        private $lastHeader;
-
-        private $base;
-
-        /**
-         *
-         */
-        public function __construct($base)
-        {
-            $this->base = $base;
+        public function getAccountID(){
+            if (!$this->kid_header['kid']) self::getAccount();
+            return $this->kid_header['kid'];
         }
 
-        /**
-         *
-         */
-        private function curl($method, $url, $data = null)
-        {
-            $headers = array('Accept: application/json', 'Content-Type: application/json');
-            $handle = curl_init();
-            curl_setopt($handle, CURLOPT_URL, preg_match('~^http~', $url) ? $url : $this->base.$url);
-            curl_setopt($handle, CURLOPT_HTTPHEADER, $headers);
-            curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($handle, CURLOPT_HEADER, true);
+        public function log($txt){
+            error_log($txt);
+        }
 
-            switch ($method) {
-                case 'GET':
-                    break;
-                case 'POST':
-                    curl_setopt($handle, CURLOPT_POST, true);
-                    curl_setopt($handle, CURLOPT_POSTFIELDS, $data);
-                    break;
+        protected function get_openssl_error(){
+            $out=array();
+            $arr=error_get_last();
+            if (is_array($arr)){
+                $out[]=$arr['message'];
             }
-            $response = curl_exec($handle);
+            $out[]=openssl_error_string();
+            return implode(' | ',$out);
+        }
+        
+        protected function getAccount(){
+            $this->log('Getting account info');
+            $ret=$this->request('newAccount',array('onlyReturnExisting'=>true));
+            $this->log('Account info retrieved');
+            return $ret;
+        }
 
-            if (curl_errno($handle)) {
-                throw new \RuntimeException('Curl: '.curl_error($handle));
+        protected function keyAuthorization($token){
+            return $token.'.'.$this->thumbprint;
+        }
+
+        protected function request($type,$payload='',$retry=false){
+            if (!$this->jwk_header) {
+                throw new Exception('use loadAccountKey to load an account key');
             }
 
-            $header_size = curl_getinfo($handle, CURLINFO_HEADER_SIZE);
+            if (!$this->resources){
+                $this->log('Initializing ACME v2 '.$this->mode.' environment');
+                $ret=$this->http_request($this->directory); // Read ACME Directory
+                if (!is_array($ret['body'])) {
+                    throw new Exception('Failed to read directory: '.$this->directory);
+                }
+                $this->resources=$ret['body']; // store resources for later use
+                $this->log('Initialized');
+            }
 
-            $header = substr($response, 0, $header_size);
-            $body = substr($response, $header_size);
-
-            $this->lastHeader = $header;
-            $this->lastCode = curl_getinfo($handle, CURLINFO_HTTP_CODE);
+            if (0===stripos($type,'http')) {
+                $this->resources['_tmp']=$type;
+                $type='_tmp';
+            }
 
             try {
-                $data = $body;
-            } catch (Exception $e) {
-                echo DEBUG ? " - JSON parse error: ".$e->getMessage()."\n" : null;
+                $ret=$this->http_request($this->resources[$type],json_encode(
+                    $this->jws_encapsulate($type,$payload)
+                ));
+            }catch(ACME_Exception $e){ // retry previous request once, if replay-nonce expired/failed
+                if (!$retry && $e->getType()==='urn:ietf:params:acme:error:badNonce') {
+                    $this->log('Replay-Nonce expired, retrying previous request');
+                    return $this->request($type,$payload,true);
+                }
+                throw $e; // rethrow all other exceptions
             }
 
-            return $data === null ? $body : $data;
-        }
-
-        /**
-         *
-         */
-        public function post($url, $data)
-        {
-            return $this->curl('POST', $url, $data);
-        }
-
-        /**
-         *
-         */
-        public function get($url)
-        {
-            return $this->curl('GET', $url);
-        }
-
-        /**
-         *
-         */
-        public function getLastNonce()
-        {
-            if (preg_match('~Replay\-Nonce: (.+)~i', $this->lastHeader, $matches)) {
-                return trim($matches[1]);
+            if (!$this->kid_header['kid'] && $type==='newAccount'){
+                $this->kid_header['kid']=$ret['headers']['location'];
+                $this->log('AccountID: '.$this->kid_header['kid']);
             }
 
-            $this->curl('GET', '/directory');
-            return $this->getLastNonce();
+            return $ret;
         }
-
-        /**
-         *
-         */
-        public function getLastLocation()
-        {
-            if (preg_match('~Location: (.+)~i', $this->lastHeader, $matches)) {
-                return trim($matches[1]);
+        
+        protected function jws_encapsulate($type,$payload,$is_inner_jws=false){ // RFC7515
+            if ($type==='newAccount' || $is_inner_jws) {
+                $protected=$this->jwk_header;
+            }else{
+                $this->getAccountID();
+                $protected=$this->kid_header;
             }
-            return null;
+
+            if (!$is_inner_jws) {
+                if (!$this->nonce) {
+                    $ret=$this->http_request($this->resources['newNonce'],false);
+                }
+                $protected['nonce']=$this->nonce;
+            }
+
+            $protected['url']=$this->resources[$type];
+
+            $protected64=$this->base64url(json_encode($protected));
+            $payload64=$this->base64url(is_string($payload)?$payload:json_encode($payload));
+
+            if (false===openssl_sign(
+                $protected64.'.'.$payload64,
+                $signature,
+                $this->account_key,
+                'SHA'.$this->sha_bits
+            )){
+                throw new Exception('Failed to sign payload !'.' ('.$this->get_openssl_error().')');
+            }
+
+            return array(
+                'protected'=>$protected64,
+                'payload'=>$payload64,
+                'signature'=>$this->base64url($this->jwk_header['alg'][0]=='R'?$signature:$this->asn2signature($signature,ceil($this->bits/8)))
+            );
+        }
+        
+        private function asn2signature($asn,$pad_len){
+            if ($asn[0]!=="\x30") throw new Exception('ASN.1 SEQUENCE not found !');
+            $asn=substr($asn,$asn[1]==="\x81"?3:2);
+            if ($asn[0]!=="\x02") throw new Exception('ASN.1 INTEGER 1 not found !');
+            $R=ltrim(substr($asn,2,ord($asn[1])),"\x00");
+            $asn=substr($asn,ord($asn[1])+2);
+            if ($asn[0]!=="\x02") throw new Exception('ASN.1 INTEGER 2 not found !');
+            $S=ltrim(substr($asn,2,ord($asn[1])),"\x00");
+            return str_pad($R,$pad_len,"\x00",STR_PAD_LEFT).str_pad($S,$pad_len,"\x00",STR_PAD_LEFT);
+        }
+        
+        protected function base64url($data){ // RFC7515 - Appendix C
+            return rtrim(strtr(base64_encode($data),'+/','-_'),'=');
+        }
+        
+        private function json_decode($str){
+            $ret=json_decode($str,true);
+            if ($ret===null) {
+                throw new Exception('Could not parse JSON: '.$str);
+            }
+            return $ret;
         }
 
-        /**
-         *
-         */
-        public function getLastCode()
-        {
-            return $this->lastCode;
-        }
+        private function http_request($url,$data=null){
+            if ($this->ch===null) {
+                if (extension_loaded('curl') && $this->ch=curl_init()) {
+                    $this->log('Using cURL');
+                }elseif(ini_get('allow_url_fopen')){
+                    $this->ch=false;
+                    $this->log('Using fopen wrappers');
+                }else{
+                    throw new Exception('Can not connect, no cURL or fopen wrappers enabled !');
+                }
+            }
+            $method=$data===false?'HEAD':($data===null?'GET':'POST');
+            $user_agent='ACMECert v2.6 (+https://github.com/skoerfgen/ACMECert)';
+            $header=($data===null||$data===false)?array():array('Content-Type: application/jose+json');
+            if ($this->ch) {
+                $headers=array();
+                curl_setopt_array($this->ch,array(
+                    CURLOPT_URL=>$url,
+                    CURLOPT_FOLLOWLOCATION=>true,
+                    CURLOPT_RETURNTRANSFER=>true,
+                    CURLOPT_TCP_NODELAY=>true,
+                    CURLOPT_NOBODY=>$data===false,
+                    CURLOPT_USERAGENT=>$user_agent,
+                    CURLOPT_CUSTOMREQUEST=>$method,
+                    CURLOPT_HTTPHEADER=>$header,
+                    CURLOPT_POSTFIELDS=>$data,
+                    CURLOPT_HEADERFUNCTION=>function($ch,$header)use(&$headers){
+                        $headers[]=$header;
+                        return strlen($header);
+                    }
+                ));
+                $took=microtime(true);
+                $body=curl_exec($this->ch);
+                $took=round(microtime(true)-$took,2).'s';
+                if ($body===false) throw new Exception('HTTP Request Error: '.curl_error($this->ch));
+            }else{
+                $opts=array(
+                    'http'=>array(
+                        'header'=>$header,
+                        'method'=>$method,
+                        'user_agent'=>$user_agent,
+                        'ignore_errors'=>true,
+                        'timeout'=>60,
+                        'content'=>$data
+                    )
+                );
+                $took=microtime(true);
+                $body=file_get_contents($url,false,stream_context_create($opts));
+                $took=round(microtime(true)-$took,2).'s';
+                if ($body===false) throw new Exception('HTTP Request Error: '.$this->get_openssl_error());
+                $headers=$http_response_header;
+            }
+            
+            $headers=array_reduce( // parse http response headers into array
+                array_filter($headers,function($item){ return trim($item)!=''; }),
+                function($carry,$item)use(&$code){
+                    $parts=explode(':',$item,2);
+                    if (count($parts)===1){
+                        list(,$code)=explode(' ',trim($item),3);
+                        $carry=array();
+                    }else{
+                        list($k,$v)=$parts;
+                        $carry[strtolower(trim($k))]=trim($v);
+                    }
+                    return $carry;
+                },
+                array()
+            );
+            $this->log('  '.$url.' ['.$code.'] ('.$took.')');
 
-        /**
-         *
-         */
-        public function getLastLinks()
-        {
-            preg_match_all('~Link: <(.+)>;rel="up"~', $this->lastHeader, $matches);
-            return $matches[1];
+            if (!empty($headers['replay-nonce'])) $this->nonce=$headers['replay-nonce'];
+
+            if (!empty($headers['content-type'])){
+                switch($headers['content-type']){
+                    case 'application/json':
+                        $body=$this->json_decode($body);
+                    break;
+                    case 'application/problem+json':
+                        $body=$this->json_decode($body);
+                        throw new ACME_Exception($body['type'],$body['detail'],
+                            array_map(function($subproblem){
+                                return new ACME_Exception(
+                                    $subproblem['type'],
+                                    '"'.$subproblem['identifier']['value'].'": '.$subproblem['detail']
+                                );
+                            },isset($body['subproblems'])?$body['subproblems']:array())
+                        );
+                    break;
+                }
+            }
+
+            if ($code[0]!='2') {
+                throw new Exception('Invalid HTTP-Status-Code received: '.$code.': '.$url);
+            }
+
+            $ret=array(
+                'code'=>$code,
+                'headers'=>$headers,
+                'body'=>$body
+            );
+
+            return $ret;
         }
     }
 
-    class Base64UrlSafeEncoder
-    {
-        /**
-         *
-         */
-        public static function encode($input)
-        {
-            return str_replace('=', '', strtr(base64_encode($input), '+/', '-_'));
+    class ACME_Exception extends Exception {
+        private $type,$subproblems;
+        function __construct($type,$detail,$subproblems=array()){
+            $this->type=$type;
+            $this->subproblems=$subproblems;
+            parent::__construct($detail.' ('.$type.')');
         }
-
-        /**
-         *
-         */
-        public static function decode($input)
-        {
-            $remainder = strlen($input) % 4;
-            if ($remainder) {
-                $padlen = 4 - $remainder;
-                $input .= str_repeat('=', $padlen);
-            }
-            return base64_decode(strtr($input, '-_', '+/'));
+        function getType(){
+            return $this->type;
+        }
+        function getSubproblems(){
+            return $this->subproblems;
         }
     }
 }
+
+// OLD V01 code
+
+// if (!class_exists('LetsEncrypt')) {
+//     class LetsEncrypt
+//     {
+//         public $ca = 'https://acme-v01.api.letsencrypt.org';
+//         //public $ca = 'https://acme-staging.api.letsencrypt.org'; // sandbox
+
+//         public $countryCode = 'GB';
+//         public $state = "Great Britain";
+//         public $challenge = 'http-01'; // http-01 challange only
+//         public $contact = array();
+//         public $last_result = '';
+//         private $certificatesDir;
+//         private $webRootDir;
+//         private $runner;
+//         private $client;
+//         private $accountKeyPath;
+
+//         /**
+//          *
+//          */
+//         public function __construct($certificatesDir, $webRootDir, ClientInterface $client = null)
+//         {
+//             $this->certificatesDir = $certificatesDir;
+//             $this->webRootDir = $webRootDir;
+//             $this->client = $client ? $client : new Client($this->ca);
+//             $this->accountKeyPath = $certificatesDir . '/_account/private.pem';
+//         }
+
+//         /**
+//          *
+//          */
+//         public function initAccount($force = false)
+//         {
+//             if (!is_file($this->accountKeyPath) || $force) {
+//                 $this->log('Starting new account registration');
+//                 $this->generateKey(dirname($this->accountKeyPath));
+//                 $this->postNewReg();
+//                 $this->log('New account certificate registered');
+//             } else {
+//                 $this->log('Account already registered. Continuing.');
+//             }
+//         }
+
+//         /**
+//          *
+//          */
+//         public function signDomains(array $domains, $reuseCsr = false)
+//         {
+//             startDomainSigning:
+
+//             $this->log('Starting certificate generation process for domains');
+
+//             $privateAccountKey = $this->readPrivateKey($this->accountKeyPath);
+//             $accountKeyDetails = openssl_pkey_get_details($privateAccountKey);
+
+//             foreach ($domains as $domain) {
+//                 $this->log("Requesting challenge for $domain");
+
+//                 $response = $this->signedRequest(
+//                     "/acme/new-authz",
+//                     array("resource" => "new-authz", "identifier" => array("type" => "dns", "value" => $domain))
+//                 );
+
+//                 $response = json_decode($response, true);
+
+//                 if (empty($response['challenges'])) {
+
+//                     // check expired letsencrypt registration
+//                     if ($response['detail'] == 'No registration exists matching provided key' && $response['status'] == 403) {
+//                         $this->log('Account expired due to 403 response from LetsEncrypt. Attempting to create new account!');
+//                         sleep(5);
+//                         $this->initAccount(true);
+//                         goto startDomainSigning;
+//                     }
+
+//                     throw new \RuntimeException("1. HTTP Challenge for $domain is not available. Whole response: " . print_r($response, true));
+//                 }
+
+//                 $self = $this;
+//                 $challenge = array_reduce($response['challenges'], function ($v, $w) use (&$self) {
+//                     return $v ? $v : ($w['type'] == $self->challenge ? $w : false);
+//                 });
+
+//                 if (!$challenge) {
+//                     throw new \RuntimeException("2. HTTP Challenge for $domain is not available. Whole response: ".print_r($response, true));
+//                 }
+
+//                 $this->log("Got challenge token for $domain");
+//                 $location = $this->client->getLastLocation();
+
+//                 $directory = $this->webRootDir . '/.well-known/acme-challenge';
+//                 $tokenPath = $directory . '/' . $challenge['token'];
+
+//                 if (!file_exists($directory) && !@mkdir($directory, 0755, true)) {
+//                     throw new \RuntimeException("Couldn't create directory to expose challenge: ${tokenPath}");
+//                 }
+
+//                 $header = array(
+//                     // need to be in precise order!
+//                     "e" => Base64UrlSafeEncoder::encode($accountKeyDetails["rsa"]["e"]),
+//                     "kty" => "RSA",
+//                     "n" => Base64UrlSafeEncoder::encode($accountKeyDetails["rsa"]["n"])
+
+//                 );
+//                 $payload = $challenge['token'] . '.' . Base64UrlSafeEncoder::encode(hash('sha256', json_encode($header), true));
+
+//                 file_put_contents($tokenPath, $payload);
+//                 chmod($tokenPath, 0644);
+
+//                 // 3. verification process itself
+//                 $uri = "http://${domain}/.well-known/acme-challenge/${challenge['token']}";
+
+//                 $this->log("Token for $domain saved at $tokenPath and should be available at $uri");
+
+//                 // simple self check
+//                 if ($payload !== trim(@file_get_contents($uri))) {
+//                     throw new \RuntimeException("Please check $uri - token not available");
+//                 }
+
+//                 $this->log("Sending request to challenge");
+
+//                 // send request to challenge
+//                 $result = $this->signedRequest(
+//                     $challenge['uri'],
+//                     array(
+//                         "resource" => "challenge",
+//                         "type" => $this->challenge,
+//                         "keyAuthorization" => $payload,
+//                         "token" => $challenge['token']
+//                     )
+//                 );
+
+//                 $result = json_decode($result, true);
+
+//                 // waiting loop
+//                 do {
+//                     if (empty($result['status']) || $result['status'] == "invalid") {
+//                         throw new \RuntimeException("Verification ended with error: " . print_r($result, true));
+//                     }
+//                     $ended = !($result['status'] === "pending");
+
+//                     if (!$ended) {
+//                         $this->log("Verification pending, sleeping 1s");
+//                         sleep(1);
+//                     }
+
+//                     $result = $this->client->get($location);
+
+//                     $result = json_decode($result, true);
+//                 } while (!$ended);
+
+//                 $this->log("Verification ended with status: ".$result['status']);
+//                 @unlink($tokenPath);
+//             }
+
+//             // requesting certificate
+//             $domainPath = $this->getDomainPath(reset($domains));
+
+//             // generate private key for domain if not exist
+//             if (!is_dir($domainPath) || !is_file($domainPath . '/private.pem')) {
+//                 $this->generateKey($domainPath);
+//             }
+
+//             // load domain key
+//             $privateDomainKey = $this->readPrivateKey($domainPath . '/private.pem');
+
+//             $this->client->getLastLinks();
+
+//             $csr = ($reuseCsr && is_file($domainPath . "/last.csr")) ?
+//                 $this->getCsrContent($domainPath . "/last.csr") :
+//             $this->generateCSR($privateDomainKey, $domains);
+
+//             // request certificates creation
+//             $result = $this->signedRequest(
+//                 "/acme/new-cert",
+//                 array('resource' => 'new-cert', 'csr' => $csr)
+//             );
+
+//             if ($this->client->getLastCode() !== 201) {
+//                 $this->last_result = json_encode($result);
+//                 throw new \RuntimeException("Invalid response code: " . $this->client->getLastCode() . ", " . json_encode($result));
+//             }
+//             $location = $this->client->getLastLocation();
+
+//             // waiting loop
+//             $certificates = array();
+//             while (1) {
+//                 $this->client->getLastLinks();
+
+//                 $result = $this->client->get($location);
+
+//                 if ($this->client->getLastCode() == 202) {
+//                     $this->log("Certificate generation pending, sleeping 1s");
+//                     sleep(1);
+//                 } elseif ($this->client->getLastCode() == 200) {
+//                     $this->log("Got certificate! YAY!");
+//                     $certificates[] = $this->parsePemFromBody($result);
+
+//                     foreach ($this->client->getLastLinks() as $link) {
+//                         $this->log("Requesting chained cert at $link");
+//                         $result = $this->client->get($link);
+//                         $certificates[] = $this->parsePemFromBody($result);
+//                     }
+
+//                     break;
+//                 } else {
+//                     throw new \RuntimeException("Can't get certificate: HTTP code " . $this->client->getLastCode());
+//                 }
+//             }
+
+//             if (empty($certificates)) {
+//                 throw new \RuntimeException('No certificates generated');
+//             }
+
+//             $this->log("Saving fullchain.pem");
+//             file_put_contents($domainPath . '/fullchain.pem', implode("\n", $certificates));
+
+//             $this->log("Saving cert.pem");
+//             file_put_contents($domainPath . '/cert.pem', array_shift($certificates));
+
+//             $this->log("Saving chain.pem");
+//             file_put_contents($domainPath . "/chain.pem", implode("\n", $certificates));
+
+//             $this->log("Done!");
+//         }
+
+//         /**
+//          *
+//          */
+//         private function readPrivateKey($path)
+//         {
+//             if (($key = openssl_pkey_get_private('file://' . $path)) === false) {
+//                 throw new \RuntimeException(openssl_error_string());
+//             }
+
+//             return $key;
+//         }
+
+//         /**
+//          *
+//          */
+//         private function parsePemFromBody($body)
+//         {
+//             $pem = chunk_split(base64_encode($body), 64, "\n");
+//             return "-----BEGIN CERTIFICATE-----\n" . $pem . "-----END CERTIFICATE-----\n";
+//         }
+
+//         /**
+//          *
+//          */
+//         private function getDomainPath($domain)
+//         {
+//             return $this->certificatesDir . '/' . $domain . '/';
+//         }
+
+//         /**
+//          *
+//          */
+//         private function postNewReg()
+//         {
+//             $this->log('Sending registration to letsencrypt server');
+
+//             $data = array('resource' => 'new-reg', 'agreement' => LETS_ENCRYPT_LICENSE);
+//             if (!$this->contact) {
+//                 $data['contact'] = $this->contact;
+//             }
+
+//             return $this->signedRequest(
+//                 '/acme/new-reg',
+//                 $data
+//             );
+//         }
+
+//         /**
+//          *
+//          */
+//         private function generateCSR($privateKey, array $domains)
+//         {
+//             $domain = reset($domains);
+//             $san = implode(",", array_map(function ($dns) {
+//                 return "DNS:" . $dns;
+//             }, $domains));
+//             $tmpConf = tmpfile();
+//             $tmpConfMeta = stream_get_meta_data($tmpConf);
+//             $tmpConfPath = $tmpConfMeta["uri"];
+
+//             // workaround to get SAN working
+//             fwrite(
+//                 $tmpConf,
+//                    'HOME = .
+// RANDFILE = $ENV::HOME/.rnd
+// [ req ]
+// default_bits = 2048
+// default_keyfile = privkey.pem
+// distinguished_name = req_distinguished_name
+// req_extensions = v3_req
+// [ req_distinguished_name ]
+// countryName = Country Name (2 letter code)
+// [ v3_req ]
+// basicConstraints = CA:FALSE
+// subjectAltName = ' . $san . '
+// keyUsage = nonRepudiation, digitalSignature, keyEncipherment'
+//             );
+
+//             $csr = openssl_csr_new(
+//                 array(
+//                     "CN" => $domain,
+//                     "ST" => $this->state,
+//                     "C" => $this->countryCode,
+//                     "O" => "Unknown",
+//                 ),
+//                 $privateKey,
+//                 array(
+//                     "config" => $tmpConfPath,
+//                     "digest_alg" => "sha256"
+//                 )
+//             );
+
+//             if (!$csr) {
+//                 throw new \RuntimeException("CSR couldn't be generated! " . openssl_error_string());
+//             }
+
+//             openssl_csr_export($csr, $csr);
+//             fclose($tmpConf);
+
+//             $csrPath = $this->getDomainPath($domain) . "/last.csr";
+//             file_put_contents($csrPath, $csr);
+
+//             return $this->getCsrContent($csrPath);
+//         }
+
+//         /**
+//          *
+//          */
+//         private function getCsrContent($csrPath)
+//         {
+//             $csr = file_get_contents($csrPath);
+
+//             preg_match('~REQUEST-----(.*)-----END~s', $csr, $matches);
+
+//             return trim(Base64UrlSafeEncoder::encode(base64_decode($matches[1])));
+//         }
+
+//         /**
+//          *
+//          */
+//         private function generateKey($outputDirectory)
+//         {
+//             $res = openssl_pkey_new(array(
+//                 "private_key_type" => OPENSSL_KEYTYPE_RSA,
+//                 "private_key_bits" => 4096,
+//             ));
+
+//             if (!openssl_pkey_export($res, $privateKey)) {
+//                 throw new \RuntimeException("Key export failed!");
+//             }
+
+//             $details = openssl_pkey_get_details($res);
+
+//             if (!is_dir($outputDirectory)) {
+//                 @mkdir($outputDirectory, 0700, true);
+//             }
+//             if (!is_dir($outputDirectory)) {
+//                 throw new \RuntimeException("Cant't create directory $outputDirectory");
+//             }
+
+//             file_put_contents($outputDirectory.'/private.pem', $privateKey);
+//             file_put_contents($outputDirectory.'/public.pem', $details['key']);
+//         }
+
+//         /**
+//          *
+//          */
+//         private function signedRequest($uri, array $payload)
+//         {
+//             $privateKey = $this->readPrivateKey($this->accountKeyPath);
+//             $details = openssl_pkey_get_details($privateKey);
+
+//             $header = array(
+//                 "alg" => "RS256",
+//                 "jwk" => array(
+//                     "kty" => "RSA",
+//                     "n" => Base64UrlSafeEncoder::encode($details["rsa"]["n"]),
+//                     "e" => Base64UrlSafeEncoder::encode($details["rsa"]["e"]),
+//                 )
+//             );
+
+//             $protected = $header;
+//             $protected["nonce"] = $this->client->getLastNonce();
+
+
+//             $payload64 = Base64UrlSafeEncoder::encode(str_replace('\\/', '/', json_encode($payload)));
+//             $protected64 = Base64UrlSafeEncoder::encode(json_encode($protected));
+
+//             openssl_sign($protected64.'.'.$payload64, $signed, $privateKey, "SHA256");
+
+//             $signed64 = Base64UrlSafeEncoder::encode($signed);
+
+//             $data = array(
+//                 'header' => $header,
+//                 'protected' => $protected64,
+//                 'payload' => $payload64,
+//                 'signature' => $signed64
+//             );
+
+//             $this->log("Sending signed request to $uri");
+
+//             return $this->client->post($uri, json_encode($data));
+//         }
+
+//         /**
+//          *
+//          */
+//         protected function log($message)
+//         {
+//             $log  = '['.date("F j, Y, g:i a").'] '.$message.PHP_EOL;
+//             file_put_contents('./.plinker/logs/letsencrypt_'.date("j.n.Y").'.txt', $log, FILE_APPEND);
+//             echo $message."\n";
+//         }
+//     }
+
+//     interface ClientInterface
+//     {
+//         public function __construct($base);
+//         public function post($url, $data);
+//         public function get($url);
+//         public function getLastNonce();
+//         public function getLastLocation();
+//         public function getLastCode();
+//         public function getLastLinks();
+//     }
+
+//     class Client implements ClientInterface
+//     {
+//         private $lastCode;
+//         private $lastHeader;
+
+//         private $base;
+
+//         /**
+//          *
+//          */
+//         public function __construct($base)
+//         {
+//             $this->base = $base;
+//         }
+
+//         /**
+//          *
+//          */
+//         private function curl($method, $url, $data = null)
+//         {
+//             $headers = array('Accept: application/json', 'Content-Type: application/json');
+//             $handle = curl_init();
+//             curl_setopt($handle, CURLOPT_URL, preg_match('~^http~', $url) ? $url : $this->base.$url);
+//             curl_setopt($handle, CURLOPT_HTTPHEADER, $headers);
+//             curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
+//             curl_setopt($handle, CURLOPT_HEADER, true);
+
+//             switch ($method) {
+//                 case 'GET':
+//                     break;
+//                 case 'POST':
+//                     curl_setopt($handle, CURLOPT_POST, true);
+//                     curl_setopt($handle, CURLOPT_POSTFIELDS, $data);
+//                     break;
+//             }
+//             $response = curl_exec($handle);
+
+//             if (curl_errno($handle)) {
+//                 throw new \RuntimeException('Curl: '.curl_error($handle));
+//             }
+
+//             $header_size = curl_getinfo($handle, CURLINFO_HEADER_SIZE);
+
+//             $header = substr($response, 0, $header_size);
+//             $body = substr($response, $header_size);
+
+//             $this->lastHeader = $header;
+//             $this->lastCode = curl_getinfo($handle, CURLINFO_HTTP_CODE);
+
+//             try {
+//                 $data = $body;
+//             } catch (Exception $e) {
+//                 echo DEBUG ? " - JSON parse error: ".$e->getMessage()."\n" : null;
+//             }
+
+//             return $data === null ? $body : $data;
+//         }
+
+//         /**
+//          *
+//          */
+//         public function post($url, $data)
+//         {
+//             return $this->curl('POST', $url, $data);
+//         }
+
+//         /**
+//          *
+//          */
+//         public function get($url)
+//         {
+//             return $this->curl('GET', $url);
+//         }
+
+//         /**
+//          *
+//          */
+//         public function getLastNonce()
+//         {
+//             if (preg_match('~Replay\-Nonce: (.+)~i', $this->lastHeader, $matches)) {
+//                 return trim($matches[1]);
+//             }
+
+//             $this->curl('GET', '/directory');
+//             return $this->getLastNonce();
+//         }
+
+//         /**
+//          *
+//          */
+//         public function getLastLocation()
+//         {
+//             if (preg_match('~Location: (.+)~i', $this->lastHeader, $matches)) {
+//                 return trim($matches[1]);
+//             }
+//             return null;
+//         }
+
+//         /**
+//          *
+//          */
+//         public function getLastCode()
+//         {
+//             return $this->lastCode;
+//         }
+
+//         /**
+//          *
+//          */
+//         public function getLastLinks()
+//         {
+//             preg_match_all('~Link: <(.+)>;rel="up"~', $this->lastHeader, $matches);
+//             return $matches[1];
+//         }
+//     }
+
+//     class Base64UrlSafeEncoder
+//     {
+//         /**
+//          *
+//          */
+//         public static function encode($input)
+//         {
+//             return str_replace('=', '', strtr(base64_encode($input), '+/', '-_'));
+//         }
+
+//         /**
+//          *
+//          */
+//         public static function decode($input)
+//         {
+//             $remainder = strlen($input) % 4;
+//             if ($remainder) {
+//                 $padlen = 4 - $remainder;
+//                 $input .= str_repeat('=', $padlen);
+//             }
+//             return base64_decode(strtr($input, '-_', '+/'));
+//         }
+//     }
+// }
+
 
 $nginx = new Nginx($this);
 
