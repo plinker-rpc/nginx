@@ -400,8 +400,8 @@ server {
                         // concat certs into single domain.tld.pem
                         file_put_contents(
                             LETS_ENCRYPT_CERTS_PATH."/{$domains[0]}/{$domains[0]}.pem",
-                            file_get_contents(LETS_ENCRYPT_CERTS_PATH."{$domains[0]}/fullchain.pem")."\n".
-                            file_get_contents(LETS_ENCRYPT_CERTS_PATH."{$domains[0]}/private.pem")
+                            file_get_contents(LETS_ENCRYPT_CERTS_PATH."/{$domains[0]}/fullchain.pem")."\n".
+                            file_get_contents(LETS_ENCRYPT_CERTS_PATH."/{$domains[0]}/private.pem")
                         );
 
                         echo DEBUG ? $this->log('Certificate: '.PHP_EOL.file_get_contents(LETS_ENCRYPT_CERTS_PATH.'/'.$domains[0].'/'.$domains[0].'.pem')) : null;
